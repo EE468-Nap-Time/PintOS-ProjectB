@@ -33,7 +33,7 @@ process_execute (const char *cmdline)
   char *file_name;
   tid_t tid;
 
-  /* Make a copy of FILE_NAME.
+  /* Make a copy of cmdline.
      Otherwise there's a race between the caller and load(). */
   cmdline_copy = palloc_get_page (0);
   if (cmdline_copy == NULL)
@@ -47,6 +47,7 @@ process_execute (const char *cmdline)
   file_name = strtok_r(file_name, " ", &cmdline_ptr);
 
   // printf("FILE NAME: %s\n", file_name);
+  // printf("cmdline: %s\n", cmdline_copy);
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, cmdline_copy);
@@ -64,8 +65,8 @@ process_execute (const char *cmdline)
 static void
 start_process (void *cmd_line_)
 {
+  // printf("process start\n");
   char *cmdline = cmd_line_;
-  // char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
 
@@ -242,6 +243,8 @@ load (const char *cmdline, void (**eip) (void), void **esp)
   file_name = malloc(strlen(cmdline) + 1);
   strlcpy(file_name, cmdline, strlen(cmdline) + 1);
   file_name = strtok_r(file_name, " ", &cmdline_ptr);
+
+  // printf("FILE NAME: %s\n", file_name);
 
   /* Open executable file. */
   file = filesys_open (file_name);
@@ -459,12 +462,12 @@ setup_stack (void **esp, const char *cmdline)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE - 12;
+        *esp = PHYS_BASE;
       else
         palloc_free_page (kpage);
     }
 
-  /* Parse cmdlin */
+  /* Parse cmdline */
   char *cmdline_copy;
   cmdline_copy = palloc_get_page (0);
   if (cmdline_copy == NULL)
@@ -494,33 +497,36 @@ setup_stack (void **esp, const char *cmdline)
     argv[argv_i] = *esp;
     argv_i++;
   }
-  argv[argc] = (uint8_t)0; // put zero for word-align
+  argv[argc] = (char*)0; // zero to indicate end of data (C standard)
 
-  // round stack pointer down to multiple of 4
+  // round stack pointer down to multiple of 4 (word-align)
   while((int)*esp % 4 != 0) {
-    *esp -= sizeof(char*);
-    char zero = 0;
-    memcpy(*esp, &zero, sizeof(char*)); 
+    *esp -= sizeof(uint8_t);
+    uint8_t zero = 0;
+    memcpy(*esp, &zero, sizeof(uint8_t)); 
   }
 
-  // Put addresses of every agrv[i] into stack
-  for(int i = argc - 1; i >= 0; i--) {
+  // Put addresses of every agrv[i] into stack (including the zero in last index)
+  for(int i = argc; i >= 0; i--) {
     *esp -= sizeof(char);
-    memcpy(*esp, &argv[i], sizeof(char*));
+    memcpy(*esp, &argv[i], sizeof(char));
   }
 
   // Put address of argv into stack
-  int argv_addr = *esp;
-  *esp -= sizeof(char);
-  memcpy(*esp, &argv_addr, sizeof(int));
+  char ** argv_addr = *esp;
+  *esp -= sizeof(char **);
+  memcpy(*esp, &argv_addr, sizeof(char **));
 
   // Put argc into stack
   *esp -= sizeof(int);
   memcpy(*esp, &argc, sizeof(int));
 
   // Put return address into stack
+  uint8_t zero = 0;
   *esp -= sizeof(void*);
-  memcpy(*esp, &argv[argc], sizeof(void*));
+  memcpy(*esp, &zero, sizeof(void*));
+
+  hex_dump(*esp, *esp , PHYS_BASE - *esp, true);
 
   palloc_free_page(cmdline_copy);
   free(argv);
