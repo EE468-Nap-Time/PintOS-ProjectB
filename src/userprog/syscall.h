@@ -2,6 +2,7 @@
 #define USERPROG_SYSCALL_H
 
 #include <user/syscall.h>
+#include "threads/synch.h"
 #include "stdbool.h"
 
 void syscall_init (void);

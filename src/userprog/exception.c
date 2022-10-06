@@ -156,13 +156,15 @@ page_fault (struct intr_frame *f)
   // Check if address is pointer to kernel virtual address space
   bool isKernelSpace = is_kernel_vaddr(fault_addr);
 
-  // Check if address is pointer to unmapped virtual memory
-  struct thread *td = thread_current();
-  bool isUaddrMapped = pagedir_get_page(td->pagedir, fault_addr) != NULL; // pagedir_get_page returns NULL if UADDR is unmapped
-
-  if(isNullAddr || isKernelSpace || isUaddrMapped) {
+  if(isNullAddr || isKernelSpace) {
    printf("Invalid Pointer\n");
-   free(fault_addr);
+  } else {
+   // Check if address is pointer to unmapped virtual memory
+   struct thread *td = thread_current();
+   bool isUaddrMapped = pagedir_get_page(td->pagedir, fault_addr) != NULL; // pagedir_get_page returns NULL if UADDR is unmapped
+   if(isUaddrMapped) {
+      printf("Invalid Pointer\n");
+   }
   }
 
   /* To implement virtual memory, delete the rest of the function

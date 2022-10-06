@@ -3,15 +3,21 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/init.h"
+#include "threads/vaddr.h"
+#include "userprog/pagedir.h"
 
 static void syscall_handler (struct intr_frame *);
+void get_args(struct intr_frame *f, char *argv, int count);
+bool verify_ptr(const void *vaddr);
 
 void syscall_init (void) {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  printf("SYSCALL INIT\n");
 }
 
-static void syscall_handler (struct intr_frame *f UNUSED)  {
-  printf ("system call!\n");
+static void syscall_handler (struct intr_frame *f)  {
+  printf ("SYSCALL HANDLER!\n");
 
   // Get stack pointer
   void *esp = f->esp;
@@ -47,13 +53,13 @@ static void syscall_handler (struct intr_frame *f UNUSED)  {
       break;
   }
 
-  thread_exit ();
+  // thread_exit();
 }
 /* Terminates Pintos by calling shutdown_power_off() (declared in threads/init.h). 
  * This should be seldom used, because you lose some information about possible deadlock situations, etc.
  */
-void syscall_halt() {
-
+void syscall_halt(void) {
+  shutdown_power_off();
 }
 
 /* Terminates the current user program, returning status to the kernel. 
@@ -141,4 +147,33 @@ unsigned syscall_tell(int fd) {
  */
 void syscall_close(int fd) {
 
+}
+
+// Get arguments stored in stack
+void get_args(struct intr_frame *f, char *argv, int count) {
+  for(size_t i = 0; i < count; i++) {
+
+  }
+}
+
+bool verify_ptr(const void *vaddr) {
+  // Check to make sure address is not a null pointer
+  bool isNullAddr = fault_addr == NULL;
+
+  // Check if address is pointer to kernel virtual address space
+  bool isKernelSpace = is_kernel_vaddr(fault_addr);
+
+  if(isNullAddr || isKernelSpace) {
+    printf("Invalid Pointer\n");
+    return false;
+  } else {
+    // Check if address is pointer to unmapped virtual memory
+    struct thread *td = thread_current();
+    bool isUaddrMapped = pagedir_get_page(td->pagedir, fault_addr) != NULL; // pagedir_get_page returns NULL if UADDR is unmapped
+    if(isUaddrMapped) {
+      printf("Invalid Pointer\n");
+      return false;
+    }
+  }
+  return true;
 }
