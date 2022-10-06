@@ -2,13 +2,14 @@
 #define USERPROG_SYSCALL_H
 
 #include <sys/types.h>
+#include "stdbool.h"
 
 void syscall_init (void);
 void syscall_exit(int status);
 pid_t syscall_exec(const char *cmd_line);
 int syscall_wait(pid_t pid);
-int syscall_create(const char *file, unsigned intitlal_size);
-int syscall_remove(const char *file);
+bool syscall_create(const char *file, unsigned intitlal_size);
+bool syscall_remove(const char *file);
 int syscall_open(const char *file);
 int syscall_filesize(int fd);
 int syscall_read(int fd, void *buffer, unsigned size);
