@@ -8,10 +8,11 @@
 #include "userprog/pagedir.h"
 
 static void syscall_handler (struct intr_frame *);
-void get_args(struct intr_frame *f, char *argv, int count);
+void get_args_from_stack(const void *esp, char *argv, int count);
 bool verify_ptr(const void *vaddr);
 
 void syscall_init (void) {
+  lock_init(&filesys_lock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
   printf("SYSCALL INIT\n");
 }
@@ -22,12 +23,17 @@ static void syscall_handler (struct intr_frame *f)  {
   // Get stack pointer
   void *esp = f->esp;
 
+  // Arguments from stack
+  char argv[3];
+
   switch(*(int*)esp) {
     case SYS_HALT:
       printf("SYSCALL_HALT\n");
       syscall_halt();
       break;
     case SYS_EXIT:
+      get_args_from_stack(esp, &argv[0], 1);
+      syscall_exit((int)argv[0]);
       break;
     case SYS_EXEC:
       break;
@@ -42,8 +48,12 @@ static void syscall_handler (struct intr_frame *f)  {
     case SYS_FILESIZE:
       break;
     case SYS_READ:
+      get_args_from_stack(esp, &argv[0], 3);
+      f->eax = syscall_read(argv[0], (void*) argv[1], (unsigned) argv[2]);
       break;
     case SYS_WRITE:
+      get_args_from_stack(esp, &argv[0], 3);
+      f->eax = syscall_write(argv[0], (const void*) argv[1], (unsigned) argv[2]);
       break;
     case SYS_SEEK:
       break;
@@ -52,8 +62,6 @@ static void syscall_handler (struct intr_frame *f)  {
     case SYS_CLOSE:
       break;
   }
-
-  // thread_exit();
 }
 /* Terminates Pintos by calling shutdown_power_off() (declared in threads/init.h). 
  * This should be seldom used, because you lose some information about possible deadlock situations, etc.
@@ -67,7 +75,14 @@ void syscall_halt(void) {
  * Conventionally, a status of 0 indicates success and nonzero values indicate errors.
  */
 void syscall_exit(int status) {
+  // struct thread *td = thread_current();
 
+  // if(thread_exists(td->parent_tid)) {
+  //   if(status < 0) status = -1;
+  //   td->status = status;
+  // }
+
+  thread_exit();
 }
 
 /* Runs the executable whose name is given in cmd_line, passing any given arguments, 
@@ -125,7 +140,7 @@ int syscall_read(int fd, void *buffer, unsigned size) {
  * actually written, which may be less than size if some bytes could not be written.
  */
 int syscall_write(int fd, const void *buffer, unsigned size) {
-
+  
 }
 
 /* Changes the next byte to be read or written in open file fd to position, 
@@ -150,18 +165,22 @@ void syscall_close(int fd) {
 }
 
 // Get arguments stored in stack
-void get_args(struct intr_frame *f, char *argv, int count) {
-  for(size_t i = 0; i < count; i++) {
-
+void get_args_from_stack(const void *esp, char *argv, int count) {
+  int *esp_ptr;
+  for(int i = 0; i < count; i++) {
+    esp_ptr = (int*)esp + i + 1;
+    if(!verify_ptr((const void*) esp_ptr))
+      syscall_exit(-1);
+    argv[i] = *esp_ptr;
   }
 }
 
 bool verify_ptr(const void *vaddr) {
   // Check to make sure address is not a null pointer
-  bool isNullAddr = fault_addr == NULL;
+  bool isNullAddr = vaddr == NULL;
 
   // Check if address is pointer to kernel virtual address space
-  bool isKernelSpace = is_kernel_vaddr(fault_addr);
+  bool isKernelSpace = is_kernel_vaddr(vaddr);
 
   if(isNullAddr || isKernelSpace) {
     printf("Invalid Pointer\n");
@@ -169,7 +188,7 @@ bool verify_ptr(const void *vaddr) {
   } else {
     // Check if address is pointer to unmapped virtual memory
     struct thread *td = thread_current();
-    bool isUaddrMapped = pagedir_get_page(td->pagedir, fault_addr) != NULL; // pagedir_get_page returns NULL if UADDR is unmapped
+    bool isUaddrMapped = pagedir_get_page(td->pagedir, vaddr) != NULL; // pagedir_get_page returns NULL if UADDR is unmapped
     if(isUaddrMapped) {
       printf("Invalid Pointer\n");
       return false;
