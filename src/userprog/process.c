@@ -38,6 +38,7 @@ process_execute (const char *cmdline)
   cmdline_copy = palloc_get_page (0);
   if (cmdline_copy == NULL)
     return TID_ERROR;
+    
   strlcpy (cmdline_copy, cmdline, PGSIZE);
 
   // Get file name
@@ -62,6 +63,7 @@ process_execute (const char *cmdline)
 static void
 start_process (void *cmd_line_)
 {
+
   char *cmdline = cmd_line_;
   struct intr_frame if_;
   bool success;
@@ -236,6 +238,7 @@ load (const char *cmdline, void (**eip) (void), void **esp)
 
   // Get file name
   char *cmdline_ptr;
+
   file_name = (char *) malloc(strlen(cmdline) + 1);
   strlcpy(file_name, cmdline, strlen(cmdline) + 1);
   file_name = strtok_r(file_name, " ", &cmdline_ptr);
