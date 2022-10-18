@@ -489,9 +489,9 @@ setup_stack (void **esp, const char *cmdline)
   cmdline_copy = (char *) malloc(strlen(cmdline) + 1);
   strlcpy (cmdline_copy, cmdline, strlen(cmdline) + 1);
 
-  //argv = calloc(argc, sizeof(char) + 1);
-  argv = (char **) malloc(argc * sizeof(char*) + 1);
-  int8_t argv_i = 0;
+  argv = calloc(argc, sizeof(char) + 1);
+  // argv = (char **) malloc(argc * sizeof(char*) + 1);
+  size_t argv_i = 0;
   for(token = strtok_r(cmdline_copy, " ", &token_ptr); token != NULL; token = strtok_r(NULL, " ", &token_ptr)) {
     *esp -= strlen(token) + 1;
     memcpy(*esp, token, strlen(token) + 1); // put data into stack
@@ -501,7 +501,7 @@ setup_stack (void **esp, const char *cmdline)
   argv[argc] = 0; // zero to indicate end of data (C standard)
 
   // round stack pointer down to multiple of 4 (word-align)
-  while((int)*esp % 4 != 0) {
+  while((uint8_t)*esp % 4 > 0) {
     *esp -= sizeof(uint8_t);
     uint8_t zero = 0;
     memcpy(*esp, &zero, sizeof(uint8_t)); 
@@ -509,8 +509,8 @@ setup_stack (void **esp, const char *cmdline)
 
   // Put addresses of every agrv[i] into stack (including the zero in last index)
   for(int i = argc; i >= 0; i--) {
-    *esp -= sizeof(char);
-    memcpy(*esp, &argv[i], sizeof(char));
+    *esp -= sizeof(char*);
+    memcpy(*esp, &argv[i], sizeof(char*));
   }
 
   // Put address of argv into stack
@@ -523,8 +523,8 @@ setup_stack (void **esp, const char *cmdline)
   memcpy(*esp, &argc, sizeof(int));
 
   // Put return address into stack
-  uint8_t zero = 0;
   *esp -= sizeof(void*);
+  int zero = 0;
   memcpy(*esp, &zero, sizeof(void*));
 
   hex_dump(*esp, *esp , PHYS_BASE - *esp, true);
