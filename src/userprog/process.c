@@ -38,11 +38,11 @@ process_execute (const char *cmdline)
   cmdline_copy = palloc_get_page (0);
   if (cmdline_copy == NULL)
     return TID_ERROR;
-  strlcpy (cmdline_copy, cmdline, strlen(cmdline) + 1);
+  strlcpy (cmdline_copy, cmdline, PGSIZE);
 
   // Get file name
   char *cmdline_ptr;
-  file_name = malloc(strlen(cmdline) + 1);
+  file_name = (char *) malloc(strlen(cmdline) + 1);
   strlcpy(file_name, cmdline, strlen(cmdline) + 1);
   file_name = strtok_r(file_name, " ", &cmdline_ptr);
 
@@ -76,6 +76,7 @@ start_process (void *cmd_line_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (cmdline, &if_.eip, &if_.esp);
+  printf("test\n");
 
   /* If load failed, quit. */
   palloc_free_page (cmdline);
@@ -240,7 +241,7 @@ load (const char *cmdline, void (**eip) (void), void **esp)
 
   // Get file name
   char *cmdline_ptr;
-  file_name = malloc(strlen(cmdline) + 1);
+  file_name = (char *) malloc(strlen(cmdline) + 1);
   strlcpy(file_name, cmdline, strlen(cmdline) + 1);
   file_name = strtok_r(file_name, " ", &cmdline_ptr);
 
@@ -251,6 +252,7 @@ load (const char *cmdline, void (**eip) (void), void **esp)
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_name);
+      free(file_name);
       goto done; 
     }
 
@@ -264,6 +266,7 @@ load (const char *cmdline, void (**eip) (void), void **esp)
       || ehdr.e_phnum > 1024) 
     {
       printf ("load: %s: error loading executable\n", file_name);
+      free(file_name);
       goto done; 
     }
 
@@ -469,9 +472,7 @@ setup_stack (void **esp, const char *cmdline)
 
   /* Parse cmdline */
   char *cmdline_copy;
-  cmdline_copy = palloc_get_page (0);
-  if (cmdline_copy == NULL)
-    return TID_ERROR;
+  cmdline_copy = (char *) malloc(strlen(cmdline) + 1);
   strlcpy (cmdline_copy, cmdline, strlen(cmdline) + 1);
 
   // Get argc
@@ -484,12 +485,12 @@ setup_stack (void **esp, const char *cmdline)
   }
 
   // Get argv
-  cmdline_copy = palloc_get_page (0);
-  if (cmdline_copy == NULL)
-    return TID_ERROR;
+  free(cmdline_copy);
+  cmdline_copy = (char *) malloc(strlen(cmdline) + 1);
   strlcpy (cmdline_copy, cmdline, strlen(cmdline) + 1);
 
-  argv = calloc(argc, sizeof(char) + 1);
+  //argv = calloc(argc, sizeof(char) + 1);
+  argv = (char **) malloc(argc * sizeof(char*) + 1);
   int8_t argv_i = 0;
   for(token = strtok_r(cmdline_copy, " ", &token_ptr); token != NULL; token = strtok_r(NULL, " ", &token_ptr)) {
     *esp -= strlen(token) + 1;
@@ -497,7 +498,7 @@ setup_stack (void **esp, const char *cmdline)
     argv[argv_i] = *esp;
     argv_i++;
   }
-  argv[argc] = (char*)0; // zero to indicate end of data (C standard)
+  argv[argc] = 0; // zero to indicate end of data (C standard)
 
   // round stack pointer down to multiple of 4 (word-align)
   while((int)*esp % 4 != 0) {
@@ -528,7 +529,7 @@ setup_stack (void **esp, const char *cmdline)
 
   hex_dump(*esp, *esp , PHYS_BASE - *esp, true);
 
-  palloc_free_page(cmdline_copy);
+  free(cmdline_copy);
   free(argv);
 
   return success;
