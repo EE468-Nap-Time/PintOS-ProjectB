@@ -46,9 +46,6 @@ process_execute (const char *cmdline)
   strlcpy(file_name, cmdline, strlen(cmdline) + 1);
   file_name = strtok_r(file_name, " ", &cmdline_ptr);
 
-  // printf("FILE NAME: %s\n", file_name);
-  // printf("cmdline: %s\n", cmdline_copy);
-
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, cmdline_copy);
 
@@ -65,7 +62,6 @@ process_execute (const char *cmdline)
 static void
 start_process (void *cmd_line_)
 {
-  // printf("process start\n");
   char *cmdline = cmd_line_;
   struct intr_frame if_;
   bool success;
@@ -76,7 +72,6 @@ start_process (void *cmd_line_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (cmdline, &if_.eip, &if_.esp);
-  printf("test\n");
 
   /* If load failed, quit. */
   palloc_free_page (cmdline);
@@ -244,8 +239,6 @@ load (const char *cmdline, void (**eip) (void), void **esp)
   file_name = (char *) malloc(strlen(cmdline) + 1);
   strlcpy(file_name, cmdline, strlen(cmdline) + 1);
   file_name = strtok_r(file_name, " ", &cmdline_ptr);
-
-  // printf("FILE NAME: %s\n", file_name);
 
   /* Open executable file. */
   file = filesys_open (file_name);
@@ -477,7 +470,7 @@ setup_stack (void **esp, const char *cmdline)
 
   // Get argc
   int argc = 0;
-  char *argv;
+  char **argv;
   char *token, *token_ptr;
 
   for(token = strtok_r(cmdline_copy, " ", &token_ptr); token != NULL; token = strtok_r(NULL, " ", &token_ptr)) {
@@ -490,8 +483,7 @@ setup_stack (void **esp, const char *cmdline)
   strlcpy (cmdline_copy, cmdline, strlen(cmdline) + 1);
 
   argv = calloc(argc, sizeof(char) + 1);
-  // argv = (char **) malloc(argc * sizeof(char*) + 1);
-  size_t argv_i = 0;
+  int argv_i = 0;
   for(token = strtok_r(cmdline_copy, " ", &token_ptr); token != NULL; token = strtok_r(NULL, " ", &token_ptr)) {
     *esp -= strlen(token) + 1;
     memcpy(*esp, token, strlen(token) + 1); // put data into stack
