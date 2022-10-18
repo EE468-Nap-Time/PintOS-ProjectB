@@ -5,6 +5,8 @@
 #include "threads/synch.h"
 #include "stdbool.h"
 
+struct lock filesys_lock;
+
 void syscall_init (void);
 void syscall_halt(void);
 void syscall_exit(int status);

@@ -183,6 +183,7 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+  t->parent_tid = thread_current()->tid;
 
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack' 
@@ -581,7 +582,23 @@ allocate_tid (void)
 
   return tid;
 }
-
+
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+bool thread_exists(tid_t tid) {
+  ASSERT (tid != TID_ERROR);
+  
+  struct list_elem *e;
+  struct thread *td;
+
+  for(e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) {
+    td = list_entry(e, struct thread, allelem);
+    if(td->tid == tid) {
+      return true;
+    }
+  }
+
+  return false;
+}
