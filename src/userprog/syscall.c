@@ -6,6 +6,8 @@
 #include "threads/init.h"
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
+#include "filesys/file.h"
+#include "filesys/filesys.h"
 
 static void syscall_handler (struct intr_frame *);
 void get_args_from_stack(const void *esp, char *argv, int count);
@@ -14,14 +16,11 @@ bool verify_ptr(const void *vaddr);
 void syscall_init (void) {
   lock_init(&filesys_lock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
-  printf("SYSCALL INIT\n");
 }
 
 static void syscall_handler (struct intr_frame *f)  {
-  printf ("SYSCALL HANDLER!\n");
-
   // Get stack pointer
-  void *esp = f->esp;
+  int *esp = f->esp;
 
   // Arguments from stack
   char argv[3];
@@ -32,34 +31,52 @@ static void syscall_handler (struct intr_frame *f)  {
       syscall_halt();
       break;
     case SYS_EXIT:
-      get_args_from_stack(esp, &argv[0], 1);
-      syscall_exit((int)argv[0]);
+      if(!verify_ptr((void*)(esp + 1)))
+        syscall_exit(-1);
+      syscall_exit((int)*(esp+1));
       break;
     case SYS_EXEC:
+      printf("[SYSCALL EXEC]\n");
       break;
     case SYS_WAIT:
+      printf("[SYSCALL WAIT]\n");
       break;
     case SYS_CREATE:
+      printf("[SYSCALL CREATE]\n");
       break;
     case SYS_REMOVE:
+      printf("[SYSCALL REMOVE]\n");
       break;
     case SYS_OPEN:
+      printf("[SYSCALL OPEN]\n");
       break;
     case SYS_FILESIZE:
+      printf("[SYSCALL FILESIZE]\n");
       break;
     case SYS_READ:
-      get_args_from_stack(esp, &argv[0], 3);
-      f->eax = syscall_read(argv[0], (void*) argv[1], (unsigned) argv[2]);
+      printf("[SYSCALL READ]\n");
       break;
     case SYS_WRITE:
-      get_args_from_stack(esp, &argv[0], 3);
-      f->eax = syscall_write(argv[0], (const void*) argv[1], (unsigned) argv[2]);
+      printf("[SYSCALL WRITE]\n");
+      if(verify_ptr((const void*)(esp+5)) && verify_ptr( (const void*) (esp+6)) && verify_ptr((const void*)(esp+7)))
+      {
+        if(verify_ptr((const void*)(*(esp+6))) && verify_ptr((const void*)((*(esp+6)+*(esp+7)-1))))
+          f->eax = (uint32_t) syscall_write((int) *(esp+5), (const void*) *(esp+6), (unsigned) *(esp+7));
+        else{
+          syscall_exit(-1);
+        }
+      }else{
+        syscall_exit(-1);
+      }
       break;
     case SYS_SEEK:
+      printf("[SYSCALL SEEK]\n");
       break;
     case SYS_TELL:
+      printf("[SYSCALL TELL]\n");
       break;
     case SYS_CLOSE:
+      printf("[SYSCALL CLOSE]\n");
       break;
   }
 }
@@ -67,6 +84,8 @@ static void syscall_handler (struct intr_frame *f)  {
  * This should be seldom used, because you lose some information about possible deadlock situations, etc.
  */
 void syscall_halt(void) {
+  printf("[SYSCALL HALT]\n");
+
   shutdown_power_off();
 }
 
@@ -75,12 +94,7 @@ void syscall_halt(void) {
  * Conventionally, a status of 0 indicates success and nonzero values indicate errors.
  */
 void syscall_exit(int status) {
-  // struct thread *td = thread_current();
-
-  // if(thread_exists(td->parent_tid)) {
-  //   if(status < 0) status = -1;
-  //   td->status = status;
-  // }
+  printf("[SYSCALL EXIT] Thread %s: status %d\n", thread_current()->name, status);
 
   thread_exit();
 }
@@ -140,7 +154,29 @@ int syscall_read(int fd, void *buffer, unsigned size) {
  * actually written, which may be less than size if some bytes could not be written.
  */
 int syscall_write(int fd, const void *buffer, unsigned size) {
-  
+  if(size <= 0) {
+    return -1;
+  }
+  if(fd == STDIN_FILENO){
+    return -1;
+  }
+  if(fd == STDOUT_FILENO){
+    putbuf (buffer, size);
+    return size;
+  }
+
+  // write to file
+  lock_acquire(&filesys_lock);
+  struct file *fd_struct = getFile(fd);
+
+  if(fd_struct == NULL) {
+    lock_release(&filesys_lock);
+    return -1;
+  }
+
+  int bytes_written = file_write(fd_struct, buffer, size);
+  lock_release(&filesys_lock);
+  return bytes_written;
 }
 
 /* Changes the next byte to be read or written in open file fd to position, 
@@ -164,6 +200,20 @@ void syscall_close(int fd) {
 
 }
 
+struct file *getFile(int fd) {
+  struct thread *td = thread_current();
+  struct list_elem *list;
+  struct file_descriptor *f_descriptor;
+
+  for(list = list_begin(&td->file_list); list != list_end(&td->file_list); list = list_next(list)) {
+    f_descriptor = list_entry(list, struct file_descriptor, elem);
+    if (fd == f_descriptor->fd) {
+      return f_descriptor->file;
+    }
+  }
+  return NULL;
+}
+
 // Get arguments stored in stack
 void get_args_from_stack(const void *esp, char *argv, int count) {
   int *esp_ptr;
@@ -182,15 +232,19 @@ bool verify_ptr(const void *vaddr) {
   // Check if address is pointer to kernel virtual address space
   bool isKernelSpace = is_kernel_vaddr(vaddr);
 
-  if(isNullAddr || isKernelSpace) {
-    printf("Invalid Pointer\n");
+  if(isNullAddr) {
+    printf("INVALID POINTER: Null Pointer\n");
+    return false;
+  }
+  else if(isKernelSpace) {
+    printf("INVALID POINTER: Pointer to kernel virtual address space\n");
     return false;
   } else {
     // Check if address is pointer to unmapped virtual memory
     struct thread *td = thread_current();
     bool isUaddrMapped = pagedir_get_page(td->pagedir, vaddr) != NULL; // pagedir_get_page returns NULL if UADDR is unmapped
-    if(isUaddrMapped) {
-      printf("Invalid Pointer\n");
+    if(!isUaddrMapped) {
+      printf("INVALID POINTER: Unmapped to virtual memory\n");
       return false;
     }
   }

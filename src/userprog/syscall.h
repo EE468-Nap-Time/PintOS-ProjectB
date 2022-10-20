@@ -3,9 +3,18 @@
 
 #include <user/syscall.h>
 #include "threads/synch.h"
+#include "threads/thread.h"
 #include "stdbool.h"
 
 struct lock filesys_lock;
+
+struct file_descriptor {
+    struct file *file;
+    int fd;
+    struct list_elem elem;
+};
+
+struct file *getFile(int fd);
 
 void syscall_init (void);
 void syscall_halt(void);

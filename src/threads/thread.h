@@ -101,6 +101,9 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
+
+    /* Syscalls */
+    struct list file_list;
   };
 
 /* If false (default), use round-robin scheduler.
