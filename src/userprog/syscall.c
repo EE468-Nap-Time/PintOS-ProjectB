@@ -22,9 +22,6 @@ static void syscall_handler (struct intr_frame *f)  {
   // Get stack pointer
   int *esp = f->esp;
 
-  // Arguments from stack
-  char argv[3];
-
   switch(*(int*)esp) {
     case SYS_HALT:
       syscall_halt();
