@@ -522,7 +522,7 @@ setup_stack (void **esp, const char *cmdline)
   int zero = 0;
   memcpy(*esp, &zero, sizeof(void*));
 
-  hex_dump(*esp, *esp , PHYS_BASE - *esp, true);
+  // hex_dump(*esp, *esp , PHYS_BASE - *esp, true);
 
   free(cmdline_copy);
   free(argv);
