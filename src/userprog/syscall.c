@@ -29,7 +29,6 @@ static void syscall_handler (struct intr_frame *f)  {
 
   switch(*(int*)esp) {
     case SYS_HALT:
-      printf("SYSCALL_HALT\n");
       syscall_halt();
       break;
     case SYS_EXIT:
@@ -38,10 +37,8 @@ static void syscall_handler (struct intr_frame *f)  {
       syscall_exit((int)*(esp+1));
       break;
     case SYS_EXEC:
-      printf("[SYSCALL EXEC]\n");
       break;
     case SYS_WAIT:
-      printf("[SYSCALL WAIT]\n");
       break;
     case SYS_CREATE:
       printf("[SYSCALL CREATE]\n");
@@ -52,24 +49,20 @@ static void syscall_handler (struct intr_frame *f)  {
       f->eax = syscall_create(*(esp + 4), *(esp + 5));
       break;
     case SYS_REMOVE:
-      printf("[SYSCALL REMOVE]\n");
       break;
     case SYS_OPEN:
-      printf("[SYSCALL OPEN]\n");
       break;
     case SYS_FILESIZE:
-      printf("[SYSCALL FILESIZE]\n");
       break;
     case SYS_READ:
-      printf("[SYSCALL READ]\n");
       break;
     case SYS_WRITE:
-      printf("[SYSCALL WRITE]\n");
       if(verify_ptr((const void*)(esp+5)) && verify_ptr( (const void*) (esp+6)) && verify_ptr((const void*)(esp+7)))
       {
-        if(verify_ptr((const void*)(*(esp+6))) && verify_ptr((const void*)((*(esp+6)+*(esp+7)-1))))
+        if(verify_ptr((const void*)(*(esp+6))) && verify_ptr((const void*)((*(esp+6)+*(esp+7)-1)))) {
           f->eax = (uint32_t) syscall_write((int) *(esp+5), (const void*) *(esp+6), (unsigned) *(esp+7));
-        else{
+          // printf("BYTES WRITTEN: %d\n", f->eax);
+        } else {
           syscall_exit(-1);
         }
       }else{
@@ -77,13 +70,10 @@ static void syscall_handler (struct intr_frame *f)  {
       }
       break;
     case SYS_SEEK:
-      printf("[SYSCALL SEEK]\n");
       break;
     case SYS_TELL:
-      printf("[SYSCALL TELL]\n");
       break;
     case SYS_CLOSE:
-      printf("[SYSCALL CLOSE]\n");
       break;
   }
 }
@@ -91,8 +81,6 @@ static void syscall_handler (struct intr_frame *f)  {
  * This should be seldom used, because you lose some information about possible deadlock situations, etc.
  */
 void syscall_halt(void) {
-  printf("[SYSCALL HALT]\n");
-
   shutdown_power_off();
 }
 
@@ -101,8 +89,7 @@ void syscall_halt(void) {
  * Conventionally, a status of 0 indicates success and nonzero values indicate errors.
  */
 void syscall_exit(int status) {
-  printf("[SYSCALL EXIT] Thread %s: status %d\n", thread_current()->name, status);
-
+  printf("%s: exit(%d)\n", thread_current()->name, status); // Needed this for the perl .ck files
   thread_exit();
 }
 
