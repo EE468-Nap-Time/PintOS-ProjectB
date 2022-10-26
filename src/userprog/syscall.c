@@ -22,8 +22,6 @@ static void syscall_handler (struct intr_frame *f)  {
   // Get stack pointer
   int *esp = f->esp;
 
-  printf("handler\n");
-
   // Arguments from stack
   char argv[3];
 
@@ -113,7 +111,6 @@ int syscall_wait(pid_t pid) {
  * opening the new file is a separate operation which would require a open system call.
  */
 bool syscall_create(const char *file, unsigned initial_size) {
-  // file system has no internal synchronization, need to use synchronization using locks to ensure that one one process at a time is executing file system code.
   lock_acquire(&filesys_lock);
   // call filesys_create from filesys.h 
   bool result = filesys_create(file, initial_size); 
