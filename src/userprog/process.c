@@ -18,6 +18,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
+#include "threads/malloc.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -502,7 +503,7 @@ setup_stack (void **esp, const char *cmdline)
     memcpy(*esp, &zero, sizeof(uint8_t)); 
   }
 
-  // Put addresses of every argv[i] into stack (including the zero in last index)
+  // Put addresses of every agrv[i] into stack (including the zero in last index)
   for(int i = argc; i >= 0; i--) {
     *esp -= sizeof(char*);
     memcpy(*esp, &argv[i], sizeof(char*));
