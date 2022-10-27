@@ -75,7 +75,9 @@ static void syscall_handler (struct intr_frame *f)  {
     case SYS_WRITE:
       if(verify_ptr((const void*)(esp+5)) && verify_ptr( (const void*) (esp+6)) && verify_ptr((const void*)(esp+7)))
       {
+        // printf("fd: %d  buf: %d,  size: %d\n", *(esp+5), *(esp+6), *(esp+7));
         f->eax = (uint32_t) syscall_write((int) *(esp+5), (const void*) *(esp+6), (unsigned) *(esp+7));
+        // printf("bytes written: %d\n", f->eax);
       } else{
         syscall_exit(-1);
       }
@@ -295,17 +297,6 @@ struct file *getFile(int fd) {
     }
   }
   return NULL;
-}
-
-// Get arguments stored in stack
-void get_args_from_stack(const void *esp, char *argv, int count) {
-  int *esp_ptr;
-  for(int i = 0; i < count; i++) {
-    esp_ptr = (int*)esp + i + 1;
-    if(!verify_ptr((const void*) esp_ptr))
-      syscall_exit(-1);
-    argv[i] = *esp_ptr;
-  }
 }
 
 bool verify_ptr(const void *vaddr) {
