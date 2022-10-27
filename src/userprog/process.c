@@ -532,12 +532,7 @@ setup_stack (void **esp, const char *cmdline)
 
 /* Adds a mapping from user virtual address UPAGE to kernel
    virtual address KPAGE to the page table.
-   If WRITABLE is true, the user process may modify the page;
-   otherwise, it is read-only.
-   UPAGE must not already be mapped.
-   KPAGE should probably be a page obtained from the user pool
-   with palloc_get_page().
-   Returns true on success, false if UPAGE is already mapped or
+   If WRITABLE is true, the useargs-multiplese if UPAGE is already mapped or
    if memory allocation fails. */
 static bool
 install_page (void *upage, void *kpage, bool writable)

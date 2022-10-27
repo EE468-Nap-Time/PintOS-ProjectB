@@ -32,8 +32,10 @@ static void syscall_handler (struct intr_frame *f)  {
       syscall_halt();
       break;
     case SYS_EXIT:
-      if(!verify_ptr((const void*)(esp + 1)))
+      if(!verify_ptr((const void*)(esp + 1))) {
         syscall_exit(-1);
+        break;
+      }
       syscall_exit((int)*(esp+1));
       break;
     case SYS_EXEC:
@@ -45,50 +47,46 @@ static void syscall_handler (struct intr_frame *f)  {
     case SYS_REMOVE:
       break;
     case SYS_OPEN:
-      if(!verify_ptr((const void*)(esp + 1)))
+      if(!verify_ptr((const void*)(esp + 1))) {
         syscall_exit(-1);
-      if(!verify_ptr((const void*)*(esp + 1)))
+        break;
+      }
+      if(!verify_ptr((const void*)*(esp + 1))) {
         syscall_exit(-1);
-
+        break;
+      }
       f->eax = (uint32_t) syscall_open((char *)*(esp + 1));
       break;
     case SYS_FILESIZE:
-      if(!verify_ptr((const void*)(esp + 1)))
+      if(!verify_ptr((const void*)(esp + 1))) {
         syscall_exit(-1);
-
+        break;
+      }
       f->eax = syscall_filesize((int)*(esp+1));
       break;
     case SYS_READ:
       if(verify_ptr((const void*)(esp+5)) && verify_ptr( (const void*) (esp+6)) && verify_ptr((const void*)(esp+7)))
       {
-        if(verify_ptr((const void*)(*(esp+6))) && verify_ptr((const void*)((*(esp+6)+*(esp+7)-1)))) {
-          f->eax = (uint32_t) syscall_read((int) *(esp+5), (const void*) *(esp+6), (unsigned) *(esp+7));
-        } else {
-          syscall_exit(-1);
-        }
-      }else{
+        f->eax = (uint32_t) syscall_read((int) *(esp+5), (const void*) *(esp+6), (unsigned) *(esp+7));
+      } else{
         syscall_exit(-1);
       }
       break;
     case SYS_WRITE:
       if(verify_ptr((const void*)(esp+5)) && verify_ptr( (const void*) (esp+6)) && verify_ptr((const void*)(esp+7)))
       {
-        if(verify_ptr((const void*)(*(esp+6))) && verify_ptr((const void*)((*(esp+6)+*(esp+7)-1)))) {
-          f->eax = (uint32_t) syscall_write((int) *(esp+5), (const void*) *(esp+6), (unsigned) *(esp+7));
-          // printf("BYTES WRITTEN: %d\n", f->eax);
-        } else {
-          syscall_exit(-1);
-        }
-      }else{
+        f->eax = (uint32_t) syscall_write((int) *(esp+5), (const void*) *(esp+6), (unsigned) *(esp+7));
+      } else{
         syscall_exit(-1);
       }
       break;
     case SYS_SEEK:
       break;
     case SYS_TELL:
-      if(!verify_ptr((const void*)(esp + 1)))
+      if(!verify_ptr((const void*)(esp + 1))) {
         syscall_exit(-1);
-
+        break;
+      }
       f->eax = syscall_tell((int)*(esp+1));
       break;
     case SYS_CLOSE:

@@ -5,6 +5,7 @@
 #include "threads/synch.h"
 #include "threads/thread.h"
 #include "stdbool.h"
+#include <stdio.h>
 
 struct lock filesys_lock;
 
