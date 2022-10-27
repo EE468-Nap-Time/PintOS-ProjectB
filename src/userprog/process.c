@@ -502,7 +502,7 @@ setup_stack (void **esp, const char *cmdline)
     memcpy(*esp, &zero, sizeof(uint8_t)); 
   }
 
-  // Put addresses of every argv[i] into stack (including the zero in last index)
+  // Put addresses of every agrv[i] into stack (including the zero in last index)
   for(int i = argc; i >= 0; i--) {
     *esp -= sizeof(char*);
     memcpy(*esp, &argv[i], sizeof(char*));

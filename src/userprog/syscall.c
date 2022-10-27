@@ -43,6 +43,12 @@ static void syscall_handler (struct intr_frame *f)  {
     case SYS_WAIT:
       break;
     case SYS_CREATE:
+      printf("[SYSCALL CREATE]\n");
+      // validate cmd line arguments
+      if(!verify_ptr((void*)(esp + 5)) || !verify_ptr((void*)(*(esp + 4))))
+        syscall_exit(-1);
+      // put result from syscall_create into return register
+      f->eax = syscall_create(*(esp + 4), *(esp + 5));
       break;
     case SYS_REMOVE:
       break;
@@ -144,7 +150,11 @@ int syscall_wait(pid_t pid) {
  * opening the new file is a separate operation which would require a open system call.
  */
 bool syscall_create(const char *file, unsigned initial_size) {
-
+  lock_acquire(&filesys_lock);
+  // call filesys_create from filesys.h 
+  bool result = filesys_create(file, initial_size); 
+  lock_release(&filesys_lock);
+  return result;
 }
 
 /* Deletes the file called file. Returns true if successful, false otherwise. 
