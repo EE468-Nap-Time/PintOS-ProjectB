@@ -104,6 +104,7 @@ struct thread
 
     /* Syscalls */
     struct list file_list;
+    int fd;
   };
 
 /* If false (default), use round-robin scheduler.

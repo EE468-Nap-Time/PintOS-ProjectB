@@ -41,6 +41,12 @@ static void syscall_handler (struct intr_frame *f)  {
     case SYS_REMOVE:
       break;
     case SYS_OPEN:
+      if(!verify_ptr((const void*)(esp + 1)))
+        syscall_exit(-1);
+      if(!verify_ptr((const void*)*(esp + 1)))
+        syscall_exit(-1);
+
+      f->eax = (uint32_t) syscall_open((char *)*(esp + 1));
       break;
     case SYS_FILESIZE:
       break;
@@ -128,7 +134,20 @@ bool syscall_remove(const char *file) {
  * "file descriptor" (fd), or -1 if the file could not be opened.
  */
 int syscall_open(const char *file) {
+  lock_acquire(&filesys_lock);
+  struct file *fd_struct = filesys_open(file);
 
+  if(fd_struct == NULL) {
+    lock_release(&filesys_lock);
+    return -1;
+  }
+
+  struct file_descriptor *new_fd = malloc(sizeof(struct file_descriptor));
+  new_fd->file = fd_struct;
+  new_fd->fd = thread_current()->fd;
+  thread_current()->fd++;
+  list_push_back(&thread_current()->file_list, &new_fd->elem);
+  return new_fd->fd;
 }
 
 /* Returns the size, in bytes, of the file open as fd. */
