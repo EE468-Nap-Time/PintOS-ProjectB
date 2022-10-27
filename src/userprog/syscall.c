@@ -1,6 +1,7 @@
 #include "userprog/syscall.h"
 #include <stdio.h>
 #include <syscall-nr.h>
+#include "devices/input.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/init.h"
@@ -44,6 +45,16 @@ static void syscall_handler (struct intr_frame *f)  {
     case SYS_FILESIZE:
       break;
     case SYS_READ:
+      if(verify_ptr((const void*)(esp+5)) && verify_ptr( (const void*) (esp+6)) && verify_ptr((const void*)(esp+7)))
+      {
+        if(verify_ptr((const void*)(*(esp+6))) && verify_ptr((const void*)((*(esp+6)+*(esp+7)-1)))) {
+          f->eax = (uint32_t) syscall_read((int) *(esp+5), (const void*) *(esp+6), (unsigned) *(esp+7));
+        } else {
+          syscall_exit(-1);
+        }
+      }else{
+        syscall_exit(-1);
+      }
       break;
     case SYS_WRITE:
       if(verify_ptr((const void*)(esp+5)) && verify_ptr( (const void*) (esp+6)) && verify_ptr((const void*)(esp+7)))
@@ -130,7 +141,32 @@ int syscall_filesize(int fd) {
  * (due to a condition other than end of file). Fd 0 reads from the keyboard using input_getc().
  */
 int syscall_read(int fd, void *buffer, unsigned size) {
+  if(size <= 0) {
+    return -1;
+  }
+  if(fd == STDIN_FILENO){
+    uint8_t *buf = buffer;
+    for (size_t i = 0; i < size; i++) {
+      buf[i] = input_getc(); // get input character from input buffer (key press)
+    }
+    return size;
+  }
+  if(fd == STDOUT_FILENO){
+    return -1;
+  }
 
+  // Read file
+  lock_acquire(&filesys_lock);
+  struct file *fd_struct = getFile(fd);
+  
+  if(fd_struct == NULL) {
+    lock_release(&filesys_lock);
+    return -1;
+  }
+
+  int bytes_read = file_read(fd_struct, buffer, size);
+  lock_release(&filesys_lock);
+  return bytes_read;
 }
 
 /* Writes size bytes from buffer to the open file fd. Returns the number of bytes 
