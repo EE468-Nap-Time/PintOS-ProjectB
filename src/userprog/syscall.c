@@ -24,7 +24,7 @@ static void syscall_handler (struct intr_frame *f)  {
   int *esp = f->esp;
 
   // Verify stack pointer
-  if(!verify_ptr((void*)(esp)))
+  if(!verify_ptr((const void*)(esp)))
         syscall_exit(-1);
 
   switch(*(int*)esp) {
@@ -32,7 +32,7 @@ static void syscall_handler (struct intr_frame *f)  {
       syscall_halt();
       break;
     case SYS_EXIT:
-      if(!verify_ptr((void*)(esp + 1)))
+      if(!verify_ptr((const void*)(esp + 1)))
         syscall_exit(-1);
       syscall_exit((int)*(esp+1));
       break;
@@ -86,6 +86,10 @@ static void syscall_handler (struct intr_frame *f)  {
     case SYS_SEEK:
       break;
     case SYS_TELL:
+      if(!verify_ptr((const void*)(esp + 1)))
+        syscall_exit(-1);
+
+      f->eax = syscall_tell((int)*(esp+1));
       break;
     case SYS_CLOSE:
       break;
@@ -260,7 +264,18 @@ void syscall_seek(int fd, unsigned position) {
  * expressed in bytes from the beginning of the file.
  */
 unsigned syscall_tell(int fd) {
+  lock_acquire(&filesys_lock);
+  struct file *fd_struct = getFile(fd);
 
+  if(fd_struct == NULL) {
+    lock_release(&filesys_lock);
+    return -1;
+  }
+
+  int byte_pos = file_tell(fd_struct);
+  lock_release(&filesys_lock);
+
+  return byte_pos;
 }
 
 /* Closes file descriptor fd. Exiting or terminating a process implicitly closes all its 
