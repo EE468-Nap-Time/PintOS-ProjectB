@@ -81,11 +81,9 @@ start_process (void *cmd_line_)
   /* If load failed, quit. */
   palloc_free_page (cmdline);
   if (!success) {
-    thread_current()->parent->success = false;
     sema_up(&thread_current()->parent->child_lock);
     thread_exit ();
   } else {
-    thread_current()->parent->success = true;
     sema_up(&thread_current()->parent->child_lock);
   }
 

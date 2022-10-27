@@ -108,7 +108,6 @@ struct thread
     struct list file_list;
     int fd;
     struct thread *parent;
-    bool success;
 
     struct list children;
     struct lock child_lock;

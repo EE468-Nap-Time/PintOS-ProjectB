@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <syscall-nr.h>
 #include "devices/input.h"
+#include "devices/shutdown.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/init.h"
@@ -9,13 +10,13 @@
 #include "userprog/pagedir.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
+#include "threads/malloc.h"
 
 static void syscall_handler (struct intr_frame *);
 void get_args_from_stack(const void *esp, char *argv, int count);
 bool verify_ptr(const void *vaddr);
 
 void syscall_init (void) {
-  printf("SYS INIT\n");
   lock_init(&filesys_lock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
@@ -26,7 +27,6 @@ static void syscall_handler (struct intr_frame *f)  {
 
   // Verify stack pointer
   if(!verify_ptr((const void*)(esp))) {
-    printf("STACK PTR ERROR\n");
     syscall_exit(-1);
     return;
   }
@@ -51,7 +51,7 @@ static void syscall_handler (struct intr_frame *f)  {
       if(!verify_ptr((void*)(esp + 5)) || !verify_ptr((void*)(*(esp + 4))))
         syscall_exit(-1);
       // put result from syscall_create into return register
-      f->eax = syscall_create(*(esp + 4), *(esp + 5));
+      f->eax = syscall_create((const char*)*(esp + 4), (unsigned)*(esp + 5));
       break;
     case SYS_REMOVE:
       break;
@@ -72,7 +72,7 @@ static void syscall_handler (struct intr_frame *f)  {
     case SYS_READ:
       if(verify_ptr((const void*)(esp+5)) && verify_ptr( (const void*) (esp+6)) && verify_ptr((const void*)(esp+7)))
       {
-        f->eax = (uint32_t) syscall_read((int) *(esp+5), (const void*) *(esp+6), (unsigned) *(esp+7));
+        f->eax = (uint32_t) syscall_read((int) *(esp+5), (void*) *(esp+6), (unsigned int) *(esp+7));
       } else{
         syscall_exit(-1);
       }
@@ -316,18 +316,18 @@ bool verify_ptr(const void *vaddr) {
   bool isKernelSpace = is_kernel_vaddr(vaddr);
 
   if(isNullAddr) {
-    printf("INVALID POINTER: Null Pointer\n");
+    // printf("INVALID POINTER: Null Pointer\n");
     return false;
   }
   else if(isKernelSpace) {
-    printf("INVALID POINTER: Pointer to kernel virtual address space\n");
+    // printf("INVALID POINTER: Pointer to kernel virtual address space\n");
     return false;
   } else {
     // Check if address is pointer to unmapped virtual memory
     struct thread *td = thread_current();
     bool isUaddrMapped = pagedir_get_page(td->pagedir, vaddr) != NULL; // pagedir_get_page returns NULL if UADDR is unmapped
     if(!isUaddrMapped) {
-      printf("INVALID POINTER: Unmapped to virtual memory\n");
+      // printf("INVALID POINTER: Unmapped to virtual memory\n");
       return false;
     }
   }
