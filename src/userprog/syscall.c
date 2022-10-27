@@ -23,6 +23,10 @@ static void syscall_handler (struct intr_frame *f)  {
   // Get stack pointer
   int *esp = f->esp;
 
+  // Verify stack pointer
+  if(!verify_ptr((void*)(esp)))
+        syscall_exit(-1);
+
   switch(*(int*)esp) {
     case SYS_HALT:
       syscall_halt();
@@ -49,6 +53,10 @@ static void syscall_handler (struct intr_frame *f)  {
       f->eax = (uint32_t) syscall_open((char *)*(esp + 1));
       break;
     case SYS_FILESIZE:
+      if(!verify_ptr((const void*)(esp + 1)))
+        syscall_exit(-1);
+
+      f->eax = syscall_filesize((int)*(esp+1));
       break;
     case SYS_READ:
       if(verify_ptr((const void*)(esp+5)) && verify_ptr( (const void*) (esp+6)) && verify_ptr((const void*)(esp+7)))
@@ -165,7 +173,18 @@ int syscall_open(const char *file) {
 
 /* Returns the size, in bytes, of the file open as fd. */
 int syscall_filesize(int fd) {
+  lock_acquire(&filesys_lock);
+  struct file *fd_struct = getFile(fd);
 
+  if(fd_struct == NULL) {
+    lock_release(&filesys_lock);
+    return -1;
+  }
+
+  int filesize = file_length(fd_struct);
+  lock_release(&filesys_lock);
+
+  return filesize;
 }
 
 /* Reads size bytes from the file open as fd into buffer. Returns the number 
