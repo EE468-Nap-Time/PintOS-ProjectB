@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -105,7 +106,18 @@ struct thread
     /* Syscalls */
     struct list file_list;
     int fd;
+    struct thread *parent;
+
+    struct list children;
+    struct lock child_lock;
   };
+
+   struct child {
+      int tid;
+      struct list_elem elem;
+      int exit_error;
+      bool used;
+    };
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.

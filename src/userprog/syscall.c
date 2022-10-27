@@ -95,6 +95,19 @@ void syscall_halt(void) {
  * Conventionally, a status of 0 indicates success and nonzero values indicate errors.
  */
 void syscall_exit(int status) {
+  struct child *child_struct;
+  struct list_elem *e;
+
+  for (e = list_begin(&thread_current()->parent->children); e != list_end(&thread_current()->parent->children); e = list_next(e)) {
+    struct child *f = list_entry(e, struct child, elem);
+    if(f->tid == thread_current()->tid) {
+      lock_acquire(&thread_current()->parent->child_lock);
+      f->used = true;
+      f->exit_error = status;
+      lock_release(&thread_current()->parent->child_lock);
+    }
+  }
+
   printf("%s: exit(%d)\n", thread_current()->name, status); // Needed this for the perl .ck files
   thread_exit();
 }
