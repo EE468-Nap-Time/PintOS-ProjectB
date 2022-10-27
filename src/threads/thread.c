@@ -470,13 +470,11 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
-  list_init(&t->children);
-  t->parent = running_thread();
-  list_init(&t->file_list);
-  t->fd = 2;
-  sema_init(&t->child_lock, 0);
-  t->waiting_td = 0;
-  t->self = NULL;
+  list_init(&t->children);        // initalize the child thread list
+  t->parent = running_thread();   // pass in the current thread as the parent thread
+  list_init(&t->file_list);       // initialize the file list
+  t->fd = 2;                      // Two lists (child thread and file list)
+  sema_init(&t->child_lock, 0);   // Initialize semaphore for child locks (synchronization)
   list_push_back (&all_list, &t->allelem);
 }
 

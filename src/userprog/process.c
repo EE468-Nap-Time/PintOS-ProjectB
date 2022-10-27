@@ -57,6 +57,7 @@ process_execute (const char *cmdline)
     palloc_free_page (cmdline_copy); 
   }
 
+  // release semaphore for child thread for synchronization
   sema_down(&thread_current()->child_lock);
 
   return tid;
@@ -78,14 +79,13 @@ start_process (void *cmd_line_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (cmdline, &if_.eip, &if_.esp);
 
+  // create semaphore for child thread for synchronization
+  sema_up(&thread_current()->parent->child_lock);
+
   /* If load failed, quit. */
   palloc_free_page (cmdline);
-  if (!success) {
-    sema_up(&thread_current()->parent->child_lock);
+  if (!success)
     thread_exit ();
-  } else {
-    sema_up(&thread_current()->parent->child_lock);
-  }
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -111,28 +111,23 @@ process_wait (tid_t child_tid UNUSED)
 {
   struct list_elem *list;
   struct child *child_found = NULL;
-  struct list_elem *list_found = NULL;
 
+  // check through all children threads on this current (parent) thread
   for(list = list_begin(&thread_current()->children); list != list_end(&thread_current()->children); list = list_next(list)) {
     struct child *ch = list_entry(list, struct child, elem);
+    // If the child exists in the list of threads, want to wait for it to die
     if (ch->tid == child_tid) {
+      // save the found child thread
       child_found = ch;
-      list_found = list;
       break;
     }
   }
 
+  // no child found? then the child is not running. No need to wait. Return.
   if (child_found == NULL) {
     return -1;
   }
 
-  thread_current()->waiting_td = child_found->tid;
-
-  if (child_found->used == false) {
-    sema_down(&thread_current()->child_lock);
-  }
-  
-  list_remove(list_found);
   return child_found->exit_error;
 }
 
@@ -160,6 +155,7 @@ process_exit (void)
       pagedir_destroy (pd);
     }
 
+    // Close every single file in the current thread (fily system lock for synchronization)
     lock_acquire(&filesys_lock);
     close_all_files(&thread_current()->file_list);
     lock_release(&filesys_lock);
@@ -371,8 +367,8 @@ load (const char *cmdline, void (**eip) (void), void **esp)
   *eip = (void (*) (void)) ehdr.e_entry;
 
   success = true;
+  // deny write instead of closing file. File closes in process_exit
   file_deny_write(file);
-  thread_current()->self = file;
 
  done:
   /* We arrive here whether the load is successful or not. */

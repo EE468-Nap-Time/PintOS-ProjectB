@@ -17,6 +17,7 @@ void get_args_from_stack(const void *esp, char *argv, int count);
 bool verify_ptr(const void *vaddr);
 
 void syscall_init (void) {
+  // Initialize file lock
   lock_init(&filesys_lock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
@@ -28,7 +29,7 @@ static void syscall_handler (struct intr_frame *f)  {
   // Verify stack pointer
   if(!verify_ptr((const void*)(esp))) {
     syscall_exit(-1);
-    return;
+    // return;
   }
 
   switch(*(int*)esp) {
@@ -38,7 +39,7 @@ static void syscall_handler (struct intr_frame *f)  {
     case SYS_EXIT:
       if(!verify_ptr((const void*)(esp + 1))) {
         syscall_exit(-1);
-        break;
+        // break;
       }
       syscall_exit((int)*(esp+1));
       break;
@@ -58,14 +59,14 @@ static void syscall_handler (struct intr_frame *f)  {
     case SYS_OPEN:
       if(!verify_ptr((const void*)(esp + 1)) || !verify_ptr((const void*)*(esp + 1))) {
         syscall_exit(-1);
-        break;
+        // break;
       }
       f->eax = (uint32_t) syscall_open((char *)*(esp + 1));
       break;
     case SYS_FILESIZE:
       if(!verify_ptr((const void*)(esp + 1))) {
         syscall_exit(-1);
-        break;
+        // break;
       }
       f->eax = syscall_filesize((int)*(esp+1));
       break;
@@ -92,7 +93,7 @@ static void syscall_handler (struct intr_frame *f)  {
     case SYS_TELL:
       if(!verify_ptr((const void*)(esp + 1))) {
         syscall_exit(-1);
-        break;
+        // break;
       }
       f->eax = syscall_tell((int)*(esp+1));
       break;
@@ -115,13 +116,15 @@ void syscall_exit(int status) {
   struct child *child_struct;
   struct list_elem *e;
 
+  // Loop through children thread of parent thread
   for (e = list_begin(&thread_current()->parent->children); e != list_end(&thread_current()->parent->children); e = list_next(e)) {
     struct child *f = list_entry(e, struct child, elem);
+    // Check if the parent is waiting for this current thread
     if(f->tid == thread_current()->tid) {
-      lock_acquire(&thread_current()->parent->child_lock);
-      f->used = true;
-      f->exit_error = status;
-      lock_release(&thread_current()->parent->child_lock);
+      sema_up(&thread_current()->parent->child_lock);
+      f->used = true;         // parent is currently using this thread
+      f->exit_error = status; // return the current status to the parent thread
+      sema_down(&thread_current()->parent->child_lock);
     }
   }
 
@@ -169,13 +172,15 @@ bool syscall_remove(const char *file) {
  */
 int syscall_open(const char *file) {
   lock_acquire(&filesys_lock);
-  struct file *fd_struct = filesys_open(file);
+  struct file *fd_struct = filesys_open(file);  // open file
 
+  // if file doesn't exist, exit
   if(fd_struct == NULL) {
     lock_release(&filesys_lock);
     return -1;
   }
 
+  // Add the file to the list of opened files of the current thread
   struct file_descriptor *new_fd = malloc(sizeof(struct file_descriptor));
   new_fd->file = fd_struct;
   new_fd->fd = thread_current()->fd;
@@ -187,13 +192,15 @@ int syscall_open(const char *file) {
 /* Returns the size, in bytes, of the file open as fd. */
 int syscall_filesize(int fd) {
   lock_acquire(&filesys_lock);
-  struct file *fd_struct = getFile(fd);
+  struct file *fd_struct = getFile(fd); // get the file within the file list
 
+  // If file doesn't exist in the list, exit
   if(fd_struct == NULL) {
     lock_release(&filesys_lock);
     return -1;
   }
 
+  // Get the file length
   int filesize = file_length(fd_struct);
   lock_release(&filesys_lock);
 
@@ -274,13 +281,15 @@ void syscall_seek(int fd, unsigned position) {
  */
 unsigned syscall_tell(int fd) {
   lock_acquire(&filesys_lock);
-  struct file *fd_struct = getFile(fd);
+  struct file *fd_struct = getFile(fd); // get file in file list
 
+  // If file doesn't exist, exit
   if(fd_struct == NULL) {
     lock_release(&filesys_lock);
     return -1;
   }
 
+  // File tell
   int byte_pos = file_tell(fd_struct);
   lock_release(&filesys_lock);
 
@@ -299,10 +308,11 @@ struct file *getFile(int fd) {
   struct list_elem *list;
   struct file_descriptor *f_descriptor;
 
+  // Loop through file list of current thread
   for(list = list_begin(&td->file_list); list != list_end(&td->file_list); list = list_next(list)) {
     f_descriptor = list_entry(list, struct file_descriptor, elem);
     if (fd == f_descriptor->fd) {
-      return f_descriptor->file;
+      return f_descriptor->file; // found file. return it
     }
   }
   return NULL;
@@ -338,10 +348,11 @@ void close_all_files(struct list *files) {
   struct list_elem *list;
   struct file_descriptor *f_descriptor;
 
+  // While the file list is not empty
   while(!list_empty(files)) {
-    list = list_pop_front(files);
+    list = list_pop_front(files); // Pop it off the list
     f_descriptor = list_entry(list, struct file_descriptor, elem);
-    file_close(f_descriptor->file);
+    file_close(f_descriptor->file); // Close the file that was popped off the list
     free(f_descriptor);
   }
   

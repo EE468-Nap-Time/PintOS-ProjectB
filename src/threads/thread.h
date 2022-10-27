@@ -110,8 +110,7 @@ struct thread
     struct thread *parent;
 
     struct list children;
-    struct lock child_lock;
-    struct condition child_cond;
+    struct semaphore child_lock;
     int waiting_td;
   };
 
@@ -120,7 +119,7 @@ struct thread
       struct list_elem elem;
       int exit_error;
       bool used;
-    };
+   };
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
