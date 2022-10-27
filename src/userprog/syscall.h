@@ -32,5 +32,7 @@ void syscall_seek(int fd, unsigned position);
 unsigned syscall_tell(int fd);
 void syscall_close(int fd);
 
+void close_all_files(struct list *files);
+
 
 #endif /* userprog/syscall.h */

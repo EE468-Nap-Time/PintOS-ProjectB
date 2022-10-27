@@ -8,6 +8,7 @@
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
+#include "userprog/syscall.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -55,6 +56,9 @@ process_execute (const char *cmdline)
   if (tid == TID_ERROR) {
     palloc_free_page (cmdline_copy); 
   }
+
+  sema_down(&thread_current()->child_lock);
+
   return tid;
 }
 
@@ -63,7 +67,6 @@ process_execute (const char *cmdline)
 static void
 start_process (void *cmd_line_)
 {
-
   char *cmdline = cmd_line_;
   struct intr_frame if_;
   bool success;
@@ -77,8 +80,14 @@ start_process (void *cmd_line_)
 
   /* If load failed, quit. */
   palloc_free_page (cmdline);
-  if (!success) 
+  if (!success) {
+    thread_current()->parent->success = false;
+    sema_up(&thread_current()->parent->child_lock);
     thread_exit ();
+  } else {
+    thread_current()->parent->success = true;
+    sema_up(&thread_current()->parent->child_lock);
+  }
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -102,7 +111,31 @@ start_process (void *cmd_line_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  return -1;
+  struct list_elem *list;
+  struct child *child_found = NULL;
+  struct list_elem *list_found = NULL;
+
+  for(list = list_begin(&thread_current()->children); list != list_end(&thread_current()->children); list = list_next(list)) {
+    struct child *ch = list_entry(list, struct child, elem);
+    if (ch->tid == child_tid) {
+      child_found = ch;
+      list_found = list;
+      break;
+    }
+  }
+
+  if (child_found == NULL) {
+    return -1;
+  }
+
+  thread_current()->waiting_td = child_found->tid;
+
+  if (child_found->used == false) {
+    sema_down(&thread_current()->child_lock);
+  }
+  
+  list_remove(list_found);
+  return child_found->exit_error;
 }
 
 /* Free the current process's resources. */
@@ -128,6 +161,11 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+
+    lock_acquire(&filesys_lock);
+    close_all_files(&thread_current()->file_list);
+    lock_release(&filesys_lock);
+
 }
 
 /* Sets up the CPU for running user code in the current
@@ -229,6 +267,8 @@ load (const char *cmdline, void (**eip) (void), void **esp)
   bool success = false;
   int i;
   char *file_name;
+
+  lock_acquire(&filesys_lock);
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
@@ -333,10 +373,13 @@ load (const char *cmdline, void (**eip) (void), void **esp)
   *eip = (void (*) (void)) ehdr.e_entry;
 
   success = true;
+  file_deny_write(file);
+  thread_current()->self = file;
 
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  // file_close (file);
+  lock_release(&filesys_lock);
   return success;
 }
 
@@ -522,7 +565,7 @@ setup_stack (void **esp, const char *cmdline)
   int zero = 0;
   memcpy(*esp, &zero, sizeof(void*));
 
-  hex_dump(*esp, *esp , PHYS_BASE - *esp, true);
+  // hex_dump(*esp, *esp , PHYS_BASE - *esp, true);
 
   free(cmdline_copy);
   free(argv);

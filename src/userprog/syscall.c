@@ -15,6 +15,7 @@ void get_args_from_stack(const void *esp, char *argv, int count);
 bool verify_ptr(const void *vaddr);
 
 void syscall_init (void) {
+  printf("SYS INIT\n");
   lock_init(&filesys_lock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
@@ -24,8 +25,11 @@ static void syscall_handler (struct intr_frame *f)  {
   int *esp = f->esp;
 
   // Verify stack pointer
-  if(!verify_ptr((const void*)(esp)))
-        syscall_exit(-1);
+  if(!verify_ptr((const void*)(esp))) {
+    printf("STACK PTR ERROR\n");
+    syscall_exit(-1);
+    return;
+  }
 
   switch(*(int*)esp) {
     case SYS_HALT:
@@ -43,7 +47,6 @@ static void syscall_handler (struct intr_frame *f)  {
     case SYS_WAIT:
       break;
     case SYS_CREATE:
-      printf("[SYSCALL CREATE]\n");
       // validate cmd line arguments
       if(!verify_ptr((void*)(esp + 5)) || !verify_ptr((void*)(*(esp + 4))))
         syscall_exit(-1);
@@ -53,11 +56,7 @@ static void syscall_handler (struct intr_frame *f)  {
     case SYS_REMOVE:
       break;
     case SYS_OPEN:
-      if(!verify_ptr((const void*)(esp + 1))) {
-        syscall_exit(-1);
-        break;
-      }
-      if(!verify_ptr((const void*)*(esp + 1))) {
+      if(!verify_ptr((const void*)(esp + 1)) || !verify_ptr((const void*)*(esp + 1))) {
         syscall_exit(-1);
         break;
       }
@@ -333,4 +332,17 @@ bool verify_ptr(const void *vaddr) {
     }
   }
   return true;
+}
+
+void close_all_files(struct list *files) {
+  struct list_elem *list;
+  struct file_descriptor *f_descriptor;
+
+  while(!list_empty(files)) {
+    list = list_pop_front(files);
+    f_descriptor = list_entry(list, struct file_descriptor, elem);
+    file_close(f_descriptor->file);
+    free(f_descriptor);
+  }
+  
 }
