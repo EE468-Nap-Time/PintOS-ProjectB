@@ -61,15 +61,19 @@ static void syscall_handler(struct intr_frame *f)
         }
         f->eax = syscall_wait((pid_t)*(esp + 1));
         break;
-    case SYS_CREATE:
-      // validate cmd line arguments
-      if(!verify_ptr((void*)(esp + 5)) || !verify_ptr((void*)(*(esp + 4))))
-        syscall_exit(-1);
-      // put result from syscall_create into return register
-      f->eax = syscall_create(*(esp + 4), *(esp + 5));
-      break;
-    case SYS_REMOVE:
-      break;
+      case SYS_CREATE:
+          // validate cmd line arguments
+          if (!verify_ptr((void *)(esp + 5)) || !verify_ptr((void *)(*(esp + 4))))
+              syscall_exit(-1);
+          // put result from syscall_create into return register
+          f->eax = syscall_create((const char *)*(esp + 4), (unsigned)*(esp + 5));
+          break;
+      case SYS_REMOVE:
+          if (!verify_ptr((void *)(esp + 1)) || !verify_ptr((void *)(*(esp + 1))))
+              syscall_exit(-1);
+
+          f->eax = syscall_remove((const char *)*(esp + 1));
+          break;
     case SYS_OPEN:
       if(!verify_ptr((const void*)(esp + 1)) || !verify_ptr((const void*)*(esp + 1))) {
         syscall_exit(-1);
@@ -84,34 +88,6 @@ static void syscall_handler(struct intr_frame *f)
       }
       f->eax = syscall_filesize((int)*(esp+1));
       break;
-  case SYS_CREATE:
-    // validate cmd line arguments
-    if (!verify_ptr((void *)(esp + 5)) || !verify_ptr((void *)(*(esp + 4))))
-      syscall_exit(-1);
-    // put result from syscall_create into return register
-    f->eax = syscall_create((const char *)*(esp + 4), (unsigned)*(esp + 5));
-    break;
-  case SYS_REMOVE:
-    if (!verify_ptr((void *)(esp + 1)) || !verify_ptr((void *)(*(esp + 1))))
-      syscall_exit(-1);
-
-    f->eax = syscall_remove((const char *)*(esp + 1));
-    break;
-  case SYS_OPEN:
-    if (!verify_ptr((const void *)(esp + 1)) || !verify_ptr((const void *)*(esp + 1)))
-    {
-      syscall_exit(-1);
-      break;
-    }
-    f->eax = (uint32_t)syscall_open((char *)*(esp + 1));
-    break;
-  case SYS_FILESIZE:
-    if (!verify_ptr((const void *)(esp + 1)))
-    {
-      syscall_exit(-1);
-      break;
-    }
-        f->eax = syscall_filesize((int)*(esp + 1));
     case SYS_SEEK:
         if(!verify_ptr((const void*)(esp+4)) || !verify_ptr((const void*)(esp+5))){
             syscall_exit(-1);
