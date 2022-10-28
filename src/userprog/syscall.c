@@ -1,6 +1,7 @@
 #include "userprog/syscall.h"
 #include <stdio.h>
 #include <syscall-nr.h>
+#include "devices/input.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/init.h"
@@ -14,6 +15,7 @@ void get_args_from_stack(const void *esp, char *argv, int count);
 bool verify_ptr(const void *vaddr);
 
 void syscall_init (void) {
+  printf("SYS INIT\n");
   lock_init(&filesys_lock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
@@ -22,13 +24,22 @@ static void syscall_handler (struct intr_frame *f)  {
   // Get stack pointer
   int *esp = f->esp;
 
+  // Verify stack pointer
+  if(!verify_ptr((const void*)(esp))) {
+    printf("STACK PTR ERROR\n");
+    syscall_exit(-1);
+    return;
+  }
+
   switch(*(int*)esp) {
     case SYS_HALT:
       syscall_halt();
       break;
     case SYS_EXIT:
-      if(!verify_ptr((void*)(esp + 1)))
+      if(!verify_ptr((const void*)(esp + 1))) {
         syscall_exit(-1);
+        break;
+      }
       syscall_exit((int)*(esp+1));
       break;
     case SYS_EXEC:
@@ -51,27 +62,45 @@ static void syscall_handler (struct intr_frame *f)  {
     case SYS_REMOVE:
       break;
     case SYS_OPEN:
+      if(!verify_ptr((const void*)(esp + 1)) || !verify_ptr((const void*)*(esp + 1))) {
+        syscall_exit(-1);
+        break;
+      }
+      f->eax = (uint32_t) syscall_open((char *)*(esp + 1));
       break;
     case SYS_FILESIZE:
+      if(!verify_ptr((const void*)(esp + 1))) {
+        syscall_exit(-1);
+        break;
+      }
+      f->eax = syscall_filesize((int)*(esp+1));
       break;
     case SYS_READ:
+      if(verify_ptr((const void*)(esp+5)) && verify_ptr( (const void*) (esp+6)) && verify_ptr((const void*)(esp+7)))
+      {
+        f->eax = (uint32_t) syscall_read((int) *(esp+5), (const void*) *(esp+6), (unsigned) *(esp+7));
+      } else{
+        syscall_exit(-1);
+      }
       break;
     case SYS_WRITE:
       if(verify_ptr((const void*)(esp+5)) && verify_ptr( (const void*) (esp+6)) && verify_ptr((const void*)(esp+7)))
       {
-        if(verify_ptr((const void*)(*(esp+6))) && verify_ptr((const void*)((*(esp+6)+*(esp+7)-1)))) {
-          f->eax = (uint32_t) syscall_write((int) *(esp+5), (const void*) *(esp+6), (unsigned) *(esp+7));
-          // printf("BYTES WRITTEN: %d\n", f->eax);
-        } else {
-          syscall_exit(-1);
-        }
-      }else{
+        // printf("fd: %d  buf: %d,  size: %d\n", *(esp+5), *(esp+6), *(esp+7));
+        f->eax = (uint32_t) syscall_write((int) *(esp+5), (const void*) *(esp+6), (unsigned) *(esp+7));
+        // printf("bytes written: %d\n", f->eax);
+      } else{
         syscall_exit(-1);
       }
       break;
     case SYS_SEEK:
       break;
     case SYS_TELL:
+      if(!verify_ptr((const void*)(esp + 1))) {
+        syscall_exit(-1);
+        break;
+      }
+      f->eax = syscall_tell((int)*(esp+1));
       break;
     case SYS_CLOSE:
       break;
@@ -89,6 +118,19 @@ void syscall_halt(void) {
  * Conventionally, a status of 0 indicates success and nonzero values indicate errors.
  */
 void syscall_exit(int status) {
+  struct child *child_struct;
+  struct list_elem *e;
+
+  for (e = list_begin(&thread_current()->parent->children); e != list_end(&thread_current()->parent->children); e = list_next(e)) {
+    struct child *f = list_entry(e, struct child, elem);
+    if(f->tid == thread_current()->tid) {
+      lock_acquire(&thread_current()->parent->child_lock);
+      f->used = true;
+      f->exit_error = status;
+      lock_release(&thread_current()->parent->child_lock);
+    }
+  }
+
   printf("%s: exit(%d)\n", thread_current()->name, status); // Needed this for the perl .ck files
   thread_exit();
 }
@@ -137,12 +179,36 @@ bool syscall_remove(const char *file) {
  * "file descriptor" (fd), or -1 if the file could not be opened.
  */
 int syscall_open(const char *file) {
+  lock_acquire(&filesys_lock);
+  struct file *fd_struct = filesys_open(file);
 
+  if(fd_struct == NULL) {
+    lock_release(&filesys_lock);
+    return -1;
+  }
+
+  struct file_descriptor *new_fd = malloc(sizeof(struct file_descriptor));
+  new_fd->file = fd_struct;
+  new_fd->fd = thread_current()->fd;
+  thread_current()->fd++;
+  list_push_back(&thread_current()->file_list, &new_fd->elem);
+  return new_fd->fd;
 }
 
 /* Returns the size, in bytes, of the file open as fd. */
 int syscall_filesize(int fd) {
+  lock_acquire(&filesys_lock);
+  struct file *fd_struct = getFile(fd);
 
+  if(fd_struct == NULL) {
+    lock_release(&filesys_lock);
+    return -1;
+  }
+
+  int filesize = file_length(fd_struct);
+  lock_release(&filesys_lock);
+
+  return filesize;
 }
 
 /* Reads size bytes from the file open as fd into buffer. Returns the number 
@@ -150,7 +216,32 @@ int syscall_filesize(int fd) {
  * (due to a condition other than end of file). Fd 0 reads from the keyboard using input_getc().
  */
 int syscall_read(int fd, void *buffer, unsigned size) {
+  if(size <= 0) {
+    return -1;
+  }
+  if(fd == STDIN_FILENO){
+    uint8_t *buf = buffer;
+    for (size_t i = 0; i < size; i++) {
+      buf[i] = input_getc(); // get input character from input buffer (key press)
+    }
+    return size;
+  }
+  if(fd == STDOUT_FILENO){
+    return -1;
+  }
 
+  // Read file
+  lock_acquire(&filesys_lock);
+  struct file *fd_struct = getFile(fd);
+  
+  if(fd_struct == NULL) {
+    lock_release(&filesys_lock);
+    return -1;
+  }
+
+  int bytes_read = file_read(fd_struct, buffer, size);
+  lock_release(&filesys_lock);
+  return bytes_read;
 }
 
 /* Writes size bytes from buffer to the open file fd. Returns the number of bytes 
@@ -193,7 +284,18 @@ void syscall_seek(int fd, unsigned position) {
  * expressed in bytes from the beginning of the file.
  */
 unsigned syscall_tell(int fd) {
+  lock_acquire(&filesys_lock);
+  struct file *fd_struct = getFile(fd);
 
+  if(fd_struct == NULL) {
+    lock_release(&filesys_lock);
+    return -1;
+  }
+
+  int byte_pos = file_tell(fd_struct);
+  lock_release(&filesys_lock);
+
+  return byte_pos;
 }
 
 /* Closes file descriptor fd. Exiting or terminating a process implicitly closes all its 
@@ -217,17 +319,6 @@ struct file *getFile(int fd) {
   return NULL;
 }
 
-// Get arguments stored in stack
-void get_args_from_stack(const void *esp, char *argv, int count) {
-  int *esp_ptr;
-  for(int i = 0; i < count; i++) {
-    esp_ptr = (int*)esp + i + 1;
-    if(!verify_ptr((const void*) esp_ptr))
-      syscall_exit(-1);
-    argv[i] = *esp_ptr;
-  }
-}
-
 bool verify_ptr(const void *vaddr) {
   // Check to make sure address is not a null pointer
   bool isNullAddr = vaddr == NULL;
@@ -249,4 +340,17 @@ bool verify_ptr(const void *vaddr) {
     }
   }
   return true;
+}
+
+void close_all_files(struct list *files) {
+  struct list_elem *list;
+  struct file_descriptor *f_descriptor;
+
+  while(!list_empty(files)) {
+    list = list_pop_front(files);
+    f_descriptor = list_entry(list, struct file_descriptor, elem);
+    file_close(f_descriptor->file);
+    free(f_descriptor);
+  }
+  
 }

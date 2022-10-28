@@ -470,6 +470,13 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+  list_init(&t->children);
+  t->parent = running_thread();
+  list_init(&t->file_list);
+  t->fd = 2;
+  sema_init(&t->child_lock, 0);
+  t->waiting_td = 0;
+  t->self = NULL;
   list_push_back (&all_list, &t->allelem);
 }
 
@@ -587,7 +594,7 @@ allocate_tid (void)
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
-bool thread_exists(tid_t tid) {
+struct thread *thread_exists(tid_t tid) {
   ASSERT (tid != TID_ERROR);
   
   struct list_elem *e;
@@ -596,9 +603,9 @@ bool thread_exists(tid_t tid) {
   for(e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) {
     td = list_entry(e, struct thread, allelem);
     if(td->tid == tid) {
-      return true;
+      return td;
     }
   }
 
-  return false;
+  return NULL;
 }
