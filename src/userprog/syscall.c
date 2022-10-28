@@ -1,5 +1,6 @@
 #include "userprog/syscall.h"
 #include <stdio.h>
+#include <string.h>
 #include <syscall-nr.h>
 #include "devices/input.h"
 #include "devices/shutdown.h"
@@ -53,7 +54,7 @@ static void syscall_handler(struct intr_frame *f)
       if(!verify_ptr((void*)(esp + 1)) || !verify_ptr((void*)(*(esp + 1))))
         syscall_exit(-1);
       // put result from syscall_exec into return register
-      f->eax = syscall_exec(*(esp+1));
+      f->eax = syscall_exec((const char*)*(esp+1));
       break;
     case SYS_WAIT:
         if (!verify_ptr((const void *)(esp + 1))) {
@@ -95,7 +96,7 @@ static void syscall_handler(struct intr_frame *f)
         syscall_seek((int)(*(esp+4)), (unsigned) (*(esp+5)));
     break;
   case SYS_READ:
-    if (verify_ptr((const void *)(esp + 5)) && verify_ptr((const void *)(esp + 6)) && verify_ptr((const void *)(esp + 7)))
+    if (verify_ptr((const void *)(esp + 5)) && verify_ptr((const void *)(esp + 6)) && verify_ptr((const void *)(esp + 7)) && verify_ptr((const void*)*(esp + 6)))
     {
       f->eax = (uint32_t)syscall_read((int)*(esp + 5), (void *)*(esp + 6), (unsigned int)*(esp + 7));
     }
@@ -105,7 +106,7 @@ static void syscall_handler(struct intr_frame *f)
     }
     break;
   case SYS_WRITE:
-    if (verify_ptr((const void *)(esp + 5)) && verify_ptr((const void *)(esp + 6)) && verify_ptr((const void *)(esp + 7)) && verify_ptr(*(esp + 6)))
+    if (verify_ptr((const void *)(esp + 5)) && verify_ptr((const void *)(esp + 6)) && verify_ptr((const void *)(esp + 7)) && verify_ptr((const void*)*(esp + 6)))
     {
       // printf("fd: %d  buf: %d,  size: %d\n", *(esp+5), *(esp+6), *(esp+7));
       f->eax = (uint32_t)syscall_write((int)*(esp + 5), (const void *)*(esp + 6), (unsigned)*(esp + 7));
@@ -125,7 +126,7 @@ static void syscall_handler(struct intr_frame *f)
     f->eax = syscall_tell((int)*(esp + 1));
     break;
   case SYS_CLOSE:
-    if (!verify_ptr((const void *)(esp + 1)) || !verify_ptr((const void *)*(esp + 1))) {
+    if (!verify_ptr((const void *)(esp + 1))) {
       syscall_exit(-1);
       break;
     }
@@ -148,7 +149,6 @@ void syscall_halt(void)
  */
 void syscall_exit(int status)
 {
-  struct child *child_struct;
   struct list_elem *e;
 
   // Loop through children thread of parent thread
@@ -233,7 +233,7 @@ bool syscall_create(const char *file, unsigned initial_size)
 bool syscall_remove(const char *file)
 {
   lock_acquire(&filesys_lock);
-  const ret = filesys_remove(file);
+  bool ret = filesys_remove(file);
   lock_release(&filesys_lock);
   return ret;
 }
@@ -289,7 +289,8 @@ int syscall_filesize(int fd)
  */
 int syscall_read(int fd, void *buffer, unsigned size)
 {
-  if (size <= 0)
+
+  if (size < 0)
   {
     return -1;
   }
@@ -327,10 +328,12 @@ int syscall_read(int fd, void *buffer, unsigned size)
  */
 int syscall_write(int fd, const void *buffer, unsigned size)
 {
-  if (size <= 0)
+
+  if (size < 0)
   {
     return -1;
   }
+
   if (fd == STDIN_FILENO)
   {
     return -1;
@@ -365,7 +368,7 @@ void syscall_seek(int fd, unsigned position) {
 
     if (fd_struct == NULL) {
         lock_release(&filesys_lock);
-        return -1;
+        return;
     }
     file_seek(fd_struct, position);
     lock_release(&filesys_lock);

@@ -114,6 +114,7 @@ int process_wait(tid_t child_tid UNUSED)
   struct list_elem *list;
   struct child *child_found = NULL;
   struct list_elem *list_found = NULL;
+  int ret = -1;
 
   // check through all children threads on this current (parent) thread
   for (list = list_begin(&thread_current()->children); list != list_end(&thread_current()->children); list = list_next(list))
@@ -125,6 +126,7 @@ int process_wait(tid_t child_tid UNUSED)
       // save the found child thread and list element
       child_found = ch;
       list_found = list;
+      ret = child_found->exit_error;
       break;
     }
   }
@@ -132,14 +134,13 @@ int process_wait(tid_t child_tid UNUSED)
   // no child found? then the child is not running. No need to wait. Return.
   if (child_found == NULL)
   {
-    return -1;
+    return ret;
   }
 
   list_remove(list_found);
-  return child_found->exit_error;
 
-  // while(thread_current()->finish == false);
-  // return -1;
+  while(thread_current()->finish == false);
+  return ret;
 }
 
 /* Free the current process's resources. */
