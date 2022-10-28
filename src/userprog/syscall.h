@@ -3,9 +3,22 @@
 
 #include <user/syscall.h>
 #include "threads/synch.h"
+#include "threads/thread.h"
 #include "stdbool.h"
+#include <stdio.h>
 
-void syscall_init (void);
+struct lock filesys_lock;
+
+struct file_descriptor
+{
+    struct file *file;
+    int fd;
+    struct list_elem elem;
+};
+
+struct file *getFile(int fd);
+
+void syscall_init(void);
 void syscall_halt(void);
 void syscall_exit(int status);
 pid_t syscall_exec(const char *cmd_line);
@@ -20,5 +33,6 @@ void syscall_seek(int fd, unsigned position);
 unsigned syscall_tell(int fd);
 void syscall_close(int fd);
 
+void close_all_files(struct list *files);
 
 #endif /* userprog/syscall.h */
