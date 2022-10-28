@@ -89,6 +89,10 @@ static void syscall_handler (struct intr_frame *f)  {
       }
       break;
     case SYS_SEEK:
+      if (!verify_ptr((void *)(esp + 5)) || !verify_ptr((void *)(*(esp + 4))))
+        syscall_exit(-1);
+
+      syscall_seek((int)*(esp+4), (unsigned)*(esp+5));
       break;
     case SYS_TELL:
       if(!verify_ptr((const void*)(esp + 1))) {
@@ -279,7 +283,31 @@ int syscall_write(int fd, const void *buffer, unsigned size) {
  * expressed in bytes from the beginning of the file. (Thus, a position of 0 is the file's start.)
  */
 void syscall_seek(int fd, unsigned position) {
+  // Lock file to prevent issues
+  lock_acquire(&filesys_lock);
 
+  struct thread *td = thread_current();
+  struct list_elem *list;
+  struct file_descriptor *f_descriptor;
+
+  // Traverse through list of files that are currently open
+  for(list = list_begin(&td->file_list); list != list_end(&td->file_list); list = list_next(list)) {
+    f_descriptor = list_entry(list, struct file_descriptor, elem);
+    // Find target file
+    if (fd == f_descriptor->fd) {
+      // Exit for-loop once target file is found
+      break;
+    }
+  }
+
+  // Use file_seek() to implement
+  file_seek(f_descriptor->file, position);
+
+  // Deallocate memory reserved for f_descriptor
+  free(f_descriptor);
+
+  // Unlock once done closing file
+  lock_release(&filesys_lock);
 }
 
 /* Returns the position of the next byte to be read or written in open file fd, 
