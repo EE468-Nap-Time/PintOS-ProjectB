@@ -46,6 +46,7 @@ static void syscall_handler (struct intr_frame *f)  {
     case SYS_EXEC:
       break;
     case SYS_WAIT:
+
       break;
     case SYS_CREATE:
       // validate cmd line arguments
@@ -89,10 +90,10 @@ static void syscall_handler (struct intr_frame *f)  {
       }
       break;
     case SYS_SEEK:
-        if(!verify_ptr((void*)(esp+4)) || !verify_ptr((void*)(esp+5))){
+        if(!verify_ptr((const void*)(esp+4)) || !verify_ptr((const void*)(esp+5))){
             syscall_exit(-1);
         }
-        syscall_seek(*(esp+4), *(esp+5));
+        syscall_seek((int)(*(esp+4)), (unsigned) (*(esp+5)));
       break;
     case SYS_TELL:
       if(!verify_ptr((const void*)(esp + 1))) {
@@ -154,7 +155,7 @@ pid_t syscall_exec(const char *cmd_line) {
 
 /* Waits for a child process pid and retrieves the child's exit status. */
 int syscall_wait(pid_t pid) {
-
+  // return process_wait(pid);
 }
 
 /* Creates a new file called file initially initial_size bytes in size. 
