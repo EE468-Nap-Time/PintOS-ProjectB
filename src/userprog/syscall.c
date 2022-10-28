@@ -116,7 +116,12 @@ static void syscall_handler(struct intr_frame *f)
     }
     break;
   case SYS_SEEK:
+    if(!verify_ptr((const void*)(esp+4)) || !verify_ptr((const void*)(esp+5))){
+      syscall_exit(-1);
+    }
+    syscall_seek((int)(*(esp+4)), (unsigned) (*(esp+5)));
     break;
+
   case SYS_TELL:
     if (!verify_ptr((const void *)(esp + 1)))
     {
@@ -357,6 +362,15 @@ int syscall_write(int fd, const void *buffer, unsigned size)
  */
 void syscall_seek(int fd, unsigned position)
 {
+  lock_acquire(&filesys_lock);
+    struct file *fd_struct = getFile(fd);
+
+    if (fd_struct == NULL) {
+        lock_release(&filesys_lock);
+        return -1;
+    }
+    file_seek(fd_struct, position);
+    lock_release(&filesys_lock);
 }
 
 /* Returns the position of the next byte to be read or written in open file fd,
