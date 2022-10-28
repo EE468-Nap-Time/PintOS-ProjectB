@@ -94,7 +94,7 @@ static void syscall_handler(struct intr_frame *f)
     f->eax = syscall_filesize((int)*(esp + 1));
     break;
   case SYS_READ:
-    if (verify_ptr((const void *)(esp + 5)) && verify_ptr((const void *)(esp + 6)) && verify_ptr((const void *)(esp + 7)))
+    if (verify_ptr((const void *)(esp + 5)) && verify_ptr((const void *)(esp + 6)) && verify_ptr((const void *)(esp + 7)) && verify_ptr(*(esp + 6)))
     {
       f->eax = (uint32_t)syscall_read((int)*(esp + 5), (void *)*(esp + 6), (unsigned int)*(esp + 7));
     }
@@ -164,6 +164,10 @@ void syscall_exit(int status)
       f->exit_error = status; // return the current status to the parent thread
       sema_down(&thread_current()->parent->child_lock);
     }
+  }
+
+  if(thread_current()->parent->waiting_td == thread_current()->tid) {
+    sema_up(&thread_current()->parent->child_lock);
   }
 
   thread_current()->parent->finish = true;
