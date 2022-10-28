@@ -47,11 +47,6 @@ static void syscall_handler(struct intr_frame *f)
       syscall_exit(-1);
       break;
     }
-  case SYS_EXIT:
-    if(!verify_ptr((const void*)(esp + 1))) {
-      syscall_exit(-1);
-      break;
-    }
     syscall_exit((int)*(esp+1));
     break;
   case SYS_EXEC:
