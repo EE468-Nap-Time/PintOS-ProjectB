@@ -33,7 +33,7 @@ static void syscall_handler(struct intr_frame *f)
   if (!verify_ptr((const void *)(esp)))
   {
     syscall_exit(-1);
-    // return;
+    return;
   }
 
   switch (*(int *)esp)
@@ -45,7 +45,7 @@ static void syscall_handler(struct intr_frame *f)
     if (!verify_ptr((const void *)(esp + 1)))
     {
       syscall_exit(-1);
-      // break;
+      break;
     }
     syscall_exit((int)*(esp + 1));
     break;
@@ -55,7 +55,7 @@ static void syscall_handler(struct intr_frame *f)
     if (!verify_ptr((const void *)(esp + 1)))
     {
       syscall_exit(-1);
-      // break;
+      break;
     }
     f->eax = syscall_wait((pid_t)*(esp + 1));
     break;
@@ -76,7 +76,7 @@ static void syscall_handler(struct intr_frame *f)
     if (!verify_ptr((const void *)(esp + 1)) || !verify_ptr((const void *)*(esp + 1)))
     {
       syscall_exit(-1);
-      // break;
+      break;
     }
     f->eax = (uint32_t)syscall_open((char *)*(esp + 1));
     break;
@@ -84,7 +84,7 @@ static void syscall_handler(struct intr_frame *f)
     if (!verify_ptr((const void *)(esp + 1)))
     {
       syscall_exit(-1);
-      // break;
+      break;
     }
     f->eax = syscall_filesize((int)*(esp + 1));
     break;
@@ -99,7 +99,7 @@ static void syscall_handler(struct intr_frame *f)
     }
     break;
   case SYS_WRITE:
-    if (verify_ptr((const void *)(esp + 5)) && verify_ptr((const void *)(esp + 6)) && verify_ptr((const void *)(esp + 7)))
+    if (verify_ptr((const void *)(esp + 5)) && verify_ptr((const void *)(esp + 6)) && verify_ptr((const void *)(esp + 7)) && verify_ptr(*(esp + 6)))
     {
       // printf("fd: %d  buf: %d,  size: %d\n", *(esp+5), *(esp+6), *(esp+7));
       f->eax = (uint32_t)syscall_write((int)*(esp + 5), (const void *)*(esp + 6), (unsigned)*(esp + 7));
@@ -116,15 +116,15 @@ static void syscall_handler(struct intr_frame *f)
     if (!verify_ptr((const void *)(esp + 1)))
     {
       syscall_exit(-1);
-      // break;
+      break;
     }
     f->eax = syscall_tell((int)*(esp + 1));
     break;
   case SYS_CLOSE:
-    if (!verify_ptr((const void *)(esp + 1)))
+    if (!verify_ptr((const void *)(esp + 1)) || !verify_ptr((const void *)*(esp + 1))) {
       syscall_exit(-1);
-    if (!verify_ptr((const void *)*(esp + 1)))
-      syscall_exit(-1);
+      break;
+    }
 
     syscall_close((int)*(esp + 1));
     break;
