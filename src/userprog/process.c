@@ -134,6 +134,10 @@ int process_wait(tid_t child_tid UNUSED)
   }
 
   return child_found->exit_error;
+
+  // while(thread_current()->finish == false);
+
+  return -1;
 }
 
 /* Free the current process's resources. */

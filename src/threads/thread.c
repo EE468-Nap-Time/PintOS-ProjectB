@@ -461,6 +461,7 @@ init_thread(struct thread *t, const char *name, int priority)
   t->parent = running_thread(); // pass in the current thread as the parent thread
   list_init(&t->file_list);     // initialize the file list
   t->fd = 2;                    // Two lists (child thread and file list)
+  t->finish = false;
   sema_init(&t->child_lock, 0); // Initialize semaphore for child locks (synchronization)
   list_push_back(&all_list, &t->allelem);
 }

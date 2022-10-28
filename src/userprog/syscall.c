@@ -154,6 +154,7 @@ void syscall_exit(int status)
     }
   }
 
+  thread_current()->parent->finish = true;
   printf("%s: exit(%d)\n", thread_current()->name, status); // Needed this for the perl .ck files
   thread_exit();
 }
