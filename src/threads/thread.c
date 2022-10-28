@@ -179,6 +179,11 @@ tid_t thread_create(const char *name, int priority,
   init_thread(t, name, priority);
   tid = t->tid = allocate_tid();
   t->parent_tid = thread_current()->tid;
+  struct child *child = malloc(sizeof(*child));
+  child->tid = tid;
+  child->exit_error = t->exit_error;
+  child->used = false;
+  list_push_back(&running_thread()->children, &child->elem);
 
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack'
@@ -462,6 +467,7 @@ init_thread(struct thread *t, const char *name, int priority)
   list_init(&t->file_list);     // initialize the file list
   t->fd = 2;                    // Two lists (child thread and file list)
   t->finish = false;
+  t->exit_error = -1;
   sema_init(&t->child_lock, 0); // Initialize semaphore for child locks (synchronization)
   list_push_back(&all_list, &t->allelem);
 }

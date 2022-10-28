@@ -170,7 +170,8 @@ void syscall_exit(int status)
   }
 
   thread_current()->parent->finish = true;
-  printf("%s: exit(%d)\n", thread_current()->name, status); // Needed this for the perl .ck files
+  thread_current()->exit_error = status;
+  // printf("%s: exit(%d)\n", thread_current()->name, status); // Needed this for the perl .ck files
   thread_exit();
 }
 
@@ -454,11 +455,13 @@ bool verify_ptr(const void *vaddr)
   if (isNullAddr)
   {
     // printf("INVALID POINTER: Null Pointer\n");
+    thread_current()->exit_error = -1;
     return false;
   }
   else if (isKernelSpace)
   {
     // printf("INVALID POINTER: Pointer to kernel virtual address space\n");
+    thread_current()->exit_error = -1;
     return false;
   }
   else
@@ -469,6 +472,7 @@ bool verify_ptr(const void *vaddr)
     if (!isUaddrMapped)
     {
       // printf("INVALID POINTER: Unmapped to virtual memory\n");
+      thread_current()->exit_error = -1;
       return false;
     }
   }
