@@ -32,11 +32,16 @@ static void syscall_handler (struct intr_frame *f)  {
       syscall_exit((int)*(esp+1));
       break;
     case SYS_EXEC:
+      printf("[SYSCALL EXEC]\n");
+      // validate cmd line arguments
+      if(!verify_ptr((void*)(esp + 1)) || !verify_ptr((void*)(*(esp + 1))))
+        syscall_exit(-1);
+      // put result from syscall_exec into return register
+      f->eax = syscall_exec(*(esp+1));
       break;
     case SYS_WAIT:
       break;
     case SYS_CREATE:
-      printf("[SYSCALL CREATE]\n");
       // validate cmd line arguments
       if(!verify_ptr((void*)(esp + 5)) || !verify_ptr((void*)(*(esp + 4))))
         syscall_exit(-1);
@@ -95,7 +100,12 @@ void syscall_exit(int status) {
  * process successfully loaded its executable. You must use appropriate synchronization to ensure this.
  */
 pid_t syscall_exec(const char *cmd_line) {
-
+  // use synchronization to check the child process
+  lock_acquire(&filesys_lock);
+  // call process_execute in process.c to start a new thread, and return program id
+  pid_t result = process_execute(cmd_line);
+  lock_release(&filesys_lock);
+  return result;
 }
 
 /* Waits for a child process pid and retrieves the child's exit status. */
@@ -226,18 +236,15 @@ bool verify_ptr(const void *vaddr) {
   bool isKernelSpace = is_kernel_vaddr(vaddr);
 
   if(isNullAddr) {
-    printf("INVALID POINTER: Null Pointer\n");
     return false;
   }
   else if(isKernelSpace) {
-    printf("INVALID POINTER: Pointer to kernel virtual address space\n");
     return false;
   } else {
     // Check if address is pointer to unmapped virtual memory
     struct thread *td = thread_current();
     bool isUaddrMapped = pagedir_get_page(td->pagedir, vaddr) != NULL; // pagedir_get_page returns NULL if UADDR is unmapped
     if(!isUaddrMapped) {
-      printf("INVALID POINTER: Unmapped to virtual memory\n");
       return false;
     }
   }
