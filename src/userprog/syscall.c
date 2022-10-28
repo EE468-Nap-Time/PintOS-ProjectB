@@ -26,7 +26,6 @@ static void syscall_handler (struct intr_frame *f)  {
 
   // Verify stack pointer
   if(!verify_ptr((const void*)(esp))) {
-    printf("STACK PTR ERROR\n");
     syscall_exit(-1);
     return;
   }
@@ -43,7 +42,6 @@ static void syscall_handler (struct intr_frame *f)  {
       syscall_exit((int)*(esp+1));
       break;
     case SYS_EXEC:
-      printf("[SYSCALL EXEC]\n");
       // validate cmd line arguments
       if(!verify_ptr((void*)(esp + 1)) || !verify_ptr((void*)(*(esp + 1))))
         syscall_exit(-1);
@@ -144,10 +142,27 @@ void syscall_exit(int status) {
 pid_t syscall_exec(const char *cmd_line) {
   // use synchronization to check the child process
   lock_acquire(&filesys_lock);
-  // call process_execute in process.c to start a new thread, and return program id
-  pid_t result = process_execute(cmd_line);
-  lock_release(&filesys_lock);
-  return result;
+
+  // Get file name from cmd line
+  char *cmdline_ptr;
+  char *file_name;
+  file_name = (char *) malloc(strlen(cmd_line) + 1);
+  strlcpy(file_name, cmd_line, strlen(cmd_line) + 1);
+  file_name = strtok_r(file_name, " ", &cmdline_ptr);
+
+  // check to see if the file exists
+  struct file* f = filesys_open(file_name);
+
+  // if file does not exist, return -1
+  if(f==NULL){
+    lock_release(&filesys_lock);
+    return -1;
+  }else{
+    file_close(f);
+    // call process_execute in process.c to start a new thread, and return program id
+    lock_release(&filesys_lock);
+    return process_execute(cmd_line);
+  }
 }
 
 /* Waits for a child process pid and retrieves the child's exit status. */
