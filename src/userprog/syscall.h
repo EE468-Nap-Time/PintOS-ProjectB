@@ -9,7 +9,8 @@
 
 struct lock filesys_lock;
 
-struct file_descriptor {
+struct file_descriptor
+{
     struct file *file;
     int fd;
     struct list_elem elem;
@@ -17,7 +18,7 @@ struct file_descriptor {
 
 struct file *getFile(int fd);
 
-void syscall_init (void);
+void syscall_init(void);
 void syscall_halt(void);
 void syscall_exit(int status);
 pid_t syscall_exec(const char *cmd_line);
@@ -33,6 +34,5 @@ unsigned syscall_tell(int fd);
 void syscall_close(int fd);
 
 void close_all_files(struct list *files);
-
 
 #endif /* userprog/syscall.h */
