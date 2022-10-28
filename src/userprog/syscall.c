@@ -289,7 +289,8 @@ int syscall_filesize(int fd)
  */
 int syscall_read(int fd, void *buffer, unsigned size)
 {
-  if (size <= 0)
+
+  if (size < 0)
   {
     return -1;
   }
@@ -327,10 +328,12 @@ int syscall_read(int fd, void *buffer, unsigned size)
  */
 int syscall_write(int fd, const void *buffer, unsigned size)
 {
-  if (size <= 0)
+
+  if (size < 0)
   {
     return -1;
   }
+
   if (fd == STDIN_FILENO)
   {
     return -1;
