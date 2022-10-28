@@ -8,6 +8,7 @@
 #include "threads/init.h"
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
+#include "userprog/process.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
 #include "threads/malloc.h"
@@ -51,6 +52,12 @@ static void syscall_handler(struct intr_frame *f)
   case SYS_EXEC:
     break;
   case SYS_WAIT:
+    if (!verify_ptr((const void *)(esp + 1)))
+    {
+      syscall_exit(-1);
+      // break;
+    }
+    f->eax = syscall_wait((pid_t)*(esp + 1));
     break;
   case SYS_CREATE:
     // validate cmd line arguments
@@ -172,6 +179,7 @@ pid_t syscall_exec(const char *cmd_line)
 /* Waits for a child process pid and retrieves the child's exit status. */
 int syscall_wait(pid_t pid)
 {
+  return process_wait(pid);
 }
 
 /* Creates a new file called file initially initial_size bytes in size.
@@ -220,6 +228,7 @@ int syscall_open(const char *file)
   new_fd->fd = thread_current()->fd;
   thread_current()->fd++;
   list_push_back(&thread_current()->file_list, &new_fd->elem);
+  lock_release(&filesys_lock);
   return new_fd->fd;
 }
 
