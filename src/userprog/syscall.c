@@ -98,6 +98,12 @@ static void syscall_handler (struct intr_frame *f)  {
       f->eax = syscall_tell((int)*(esp+1));
       break;
     case SYS_CLOSE:
+      if(!verify_ptr((const void*)(esp + 1)))
+        syscall_exit(-1);
+      if(!verify_ptr((const void*)*(esp + 1)))
+        syscall_exit(-1);
+
+      syscall_close((int)*(esp+1));
       break;
   }
 }
@@ -300,7 +306,31 @@ unsigned syscall_tell(int fd) {
  * open file descriptors, as if by calling this function for each one.
  */
 void syscall_close(int fd) {
+  // Lock file to prevent issues
+  lock_acquire(&filesys_lock);
 
+  struct thread *td = thread_current();
+  struct list_elem *list;
+  struct file_descriptor *f_descriptor;
+
+  // Traverse through list of files that are currently open
+  for(list = list_begin(&td->file_list); list != list_end(&td->file_list); list = list_next(list)) {
+    f_descriptor = list_entry(list, struct file_descriptor, elem);
+    // Find target file to close
+    if (fd == f_descriptor->fd) {
+      // Close file
+      file_close(f_descriptor->file);
+
+      // Remove file from list
+      list_remove(list);
+    }
+  }
+
+  // Deallocate memory reserved for f_descriptor
+  free(f_descriptor);
+
+  // Unlock once done closing file
+  lock_release(&filesys_lock);
 }
 
 struct file *getFile(int fd) {
