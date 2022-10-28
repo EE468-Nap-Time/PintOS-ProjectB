@@ -57,6 +57,12 @@ static void syscall_handler(struct intr_frame *f)
     f->eax = syscall_exec(*(esp+1));
     break;
   case SYS_WAIT:
+    if (!verify_ptr((const void *)(esp + 1)))
+    {
+      syscall_exit(-1);
+      break;
+    }
+    f->eax = syscall_wait((pid_t)*(esp + 1));
     break;
   case SYS_CREATE:
     // validate cmd line arguments
