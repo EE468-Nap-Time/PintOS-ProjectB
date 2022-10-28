@@ -26,6 +26,7 @@ static void syscall_handler (struct intr_frame *f)  {
 
   // Verify stack pointer
   if(!verify_ptr((const void*)(esp))) {
+    // printf("STACK PTR ERROR\n");
     syscall_exit(-1);
     return;
   }
@@ -342,15 +343,18 @@ bool verify_ptr(const void *vaddr) {
   bool isKernelSpace = is_kernel_vaddr(vaddr);
 
   if(isNullAddr) {
+    // printf("INVALID POINTER: Null Pointer\n");
     return false;
   }
   else if(isKernelSpace) {
+    // printf("INVALID POINTER: Pointer to kernel virtual address space\n");
     return false;
   } else {
     // Check if address is pointer to unmapped virtual memory
     struct thread *td = thread_current();
     bool isUaddrMapped = pagedir_get_page(td->pagedir, vaddr) != NULL; // pagedir_get_page returns NULL if UADDR is unmapped
     if(!isUaddrMapped) {
+      // printf("INVALID POINTER: Unmapped to virtual memory\n");
       return false;
     }
   }
