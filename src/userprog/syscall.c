@@ -30,8 +30,8 @@ static void syscall_handler(struct intr_frame *f)
   int *esp = f->esp;
 
   // Verify stack pointer
-  if (!verify_ptr((const void *)(esp)))
-  {
+  if(!verify_ptr((const void*)(esp))) {
+    // printf("STACK PTR ERROR\n");
     syscall_exit(-1);
     return;
   }
@@ -41,24 +41,49 @@ static void syscall_handler(struct intr_frame *f)
   case SYS_HALT:
     syscall_halt();
     break;
-  case SYS_EXIT:
-    if (!verify_ptr((const void *)(esp + 1)))
-    {
-      syscall_exit(-1);
+    case SYS_EXIT:
+      if(!verify_ptr((const void*)(esp + 1))) {
+        syscall_exit(-1);
+        break;
+      }
+      syscall_exit((int)*(esp+1));
       break;
-    }
-    syscall_exit((int)*(esp + 1));
-    break;
-  case SYS_EXEC:
-    break;
-  case SYS_WAIT:
-    if (!verify_ptr((const void *)(esp + 1)))
-    {
-      syscall_exit(-1);
+    case SYS_EXEC:
+      // validate cmd line arguments
+      if(!verify_ptr((void*)(esp + 1)) || !verify_ptr((void*)(*(esp + 1))))
+        syscall_exit(-1);
+      // put result from syscall_exec into return register
+      f->eax = syscall_exec(*(esp+1));
       break;
-    }
-    f->eax = syscall_wait((pid_t)*(esp + 1));
-    break;
+    case SYS_WAIT:
+        if (!verify_ptr((const void *)(esp + 1))) {
+            syscall_exit(-1);
+        }
+        f->eax = syscall_wait((pid_t)*(esp + 1));
+        break;
+    case SYS_CREATE:
+      // validate cmd line arguments
+      if(!verify_ptr((void*)(esp + 5)) || !verify_ptr((void*)(*(esp + 4))))
+        syscall_exit(-1);
+      // put result from syscall_create into return register
+      f->eax = syscall_create(*(esp + 4), *(esp + 5));
+      break;
+    case SYS_REMOVE:
+      break;
+    case SYS_OPEN:
+      if(!verify_ptr((const void*)(esp + 1)) || !verify_ptr((const void*)*(esp + 1))) {
+        syscall_exit(-1);
+        break;
+      }
+      f->eax = (uint32_t) syscall_open((char *)*(esp + 1));
+      break;
+    case SYS_FILESIZE:
+      if(!verify_ptr((const void*)(esp + 1))) {
+        syscall_exit(-1);
+        break;
+      }
+      f->eax = syscall_filesize((int)*(esp+1));
+      break;
   case SYS_CREATE:
     // validate cmd line arguments
     if (!verify_ptr((void *)(esp + 5)) || !verify_ptr((void *)(*(esp + 4))))
@@ -175,8 +200,30 @@ void syscall_exit(int status)
  * Thus, the parent process cannot return from the exec until it knows whether the child
  * process successfully loaded its executable. You must use appropriate synchronization to ensure this.
  */
-pid_t syscall_exec(const char *cmd_line)
-{
+pid_t syscall_exec(const char *cmd_line) {
+  // use synchronization to check the child process
+  lock_acquire(&filesys_lock);
+
+  // Get file name from cmd line
+  char *cmdline_ptr;
+  char *file_name;
+  file_name = (char *) malloc(strlen(cmd_line) + 1);
+  strlcpy(file_name, cmd_line, strlen(cmd_line) + 1);
+  file_name = strtok_r(file_name, " ", &cmdline_ptr);
+
+  // check to see if the file exists
+  struct file* f = filesys_open(file_name);
+
+  // if file does not exist, return -1
+  if(f==NULL){
+    lock_release(&filesys_lock);
+    return -1;
+  }else{
+    file_close(f);
+    // call process_execute in process.c to start a new thread, and return program id
+    lock_release(&filesys_lock);
+    return process_execute(cmd_line);
+  }
 }
 
 /* Waits for a child process pid and retrieves the child's exit status. */
@@ -424,13 +471,11 @@ bool verify_ptr(const void *vaddr)
   // Check if address is pointer to kernel virtual address space
   bool isKernelSpace = is_kernel_vaddr(vaddr);
 
-  if (isNullAddr)
-  {
+  if(isNullAddr) {
     // printf("INVALID POINTER: Null Pointer\n");
     return false;
   }
-  else if (isKernelSpace)
-  {
+  else if(isKernelSpace) {
     // printf("INVALID POINTER: Pointer to kernel virtual address space\n");
     return false;
   }
@@ -439,8 +484,8 @@ bool verify_ptr(const void *vaddr)
     // Check if address is pointer to unmapped virtual memory
     struct thread *td = thread_current();
     bool isUaddrMapped = pagedir_get_page(td->pagedir, vaddr) != NULL; // pagedir_get_page returns NULL if UADDR is unmapped
-    if (!isUaddrMapped)
-    {
+
+    if(!isUaddrMapped) {
       // printf("INVALID POINTER: Unmapped to virtual memory\n");
       return false;
     }
