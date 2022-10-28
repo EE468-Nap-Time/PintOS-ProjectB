@@ -111,34 +111,34 @@ start_process(void *cmd_line_)
    does nothing. */
 int process_wait(tid_t child_tid UNUSED)
 {
-  // struct list_elem *list;
-  // struct child *child_found = NULL;
-  // struct list_elem *list_found = NULL;
+  struct list_elem *list;
+  struct child *child_found = NULL;
+  struct list_elem *list_found = NULL;
 
-  // // check through all children threads on this current (parent) thread
-  // for (list = list_begin(&thread_current()->children); list != list_end(&thread_current()->children); list = list_next(list))
-  // {
-  //   struct child *ch = list_entry(list, struct child, elem);
-  //   // If the child exists in the list of threads, want to wait for it to die
-  //   if (ch->tid == child_tid)
-  //   {
-  //     // save the found child thread and list element
-  //     child_found = ch;
-  //     list_found = list;
-  //     break;
-  //   }
-  // }
+  // check through all children threads on this current (parent) thread
+  for (list = list_begin(&thread_current()->children); list != list_end(&thread_current()->children); list = list_next(list))
+  {
+    struct child *ch = list_entry(list, struct child, elem);
+    // If the child exists in the list of threads, want to wait for it to die
+    if (ch->tid == child_tid)
+    {
+      // save the found child thread and list element
+      child_found = ch;
+      list_found = list;
+      break;
+    }
+  }
 
-  // // no child found? then the child is not running. No need to wait. Return.
-  // if (child_found == NULL)
-  // {
-  //   return -1;
-  // }
+  // no child found? then the child is not running. No need to wait. Return.
+  if (child_found == NULL)
+  {
+    return -1;
+  }
 
-  // list_remove(list_found);
-  // return child_found->exit_error;
+  list_remove(list_found);
+  return child_found->exit_error;
 
-  while(thread_current()->finish == false);
+  // while(thread_current()->finish == false);
   // return -1;
 }
 
@@ -523,7 +523,7 @@ setup_stack(void **esp, const char *cmdline)
   cmdline_copy = (char *)malloc(strlen(cmdline) + 1);
   strlcpy(cmdline_copy, cmdline, strlen(cmdline) + 1);
 
-  argv = calloc(argc, sizeof(char) + 1);
+  argv = calloc(argc, sizeof(int) + 1);
   int argv_i = 0;
   for (token = strtok_r(cmdline_copy, " ", &token_ptr); token != NULL; token = strtok_r(NULL, " ", &token_ptr))
   {
