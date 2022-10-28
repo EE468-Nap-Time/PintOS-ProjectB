@@ -41,60 +41,61 @@ static void syscall_handler(struct intr_frame *f)
   case SYS_HALT:
     syscall_halt();
     break;
-  case SYS_EXIT:
-    if (!verify_ptr((const void *)(esp + 1)))
-    {
-      syscall_exit(-1);
+    case SYS_EXIT:
+      if(!verify_ptr((const void*)(esp + 1))) {
+        syscall_exit(-1);
+        break;
+      }
+      syscall_exit((int)*(esp+1));
       break;
-    }
-    syscall_exit((int)*(esp+1));
-    break;
-  case SYS_EXEC:
-    // validate cmd line arguments
-    if(!verify_ptr((void*)(esp + 1)) || !verify_ptr((void*)(*(esp + 1))))
-      syscall_exit(-1);
-    // put result from syscall_exec into return register
-    f->eax = syscall_exec(*(esp+1));
-    break;
-  case SYS_WAIT:
-    if (!verify_ptr((const void *)(esp + 1)))
-    {
-      syscall_exit(-1);
+    case SYS_EXEC:
+      // validate cmd line arguments
+      if(!verify_ptr((void*)(esp + 1)) || !verify_ptr((void*)(*(esp + 1))))
+        syscall_exit(-1);
+      // put result from syscall_exec into return register
+      f->eax = syscall_exec(*(esp+1));
       break;
-    }
-    f->eax = syscall_wait((pid_t)*(esp + 1));
-    break;
-  case SYS_CREATE:
-    // validate cmd line arguments
-    if (!verify_ptr((void *)(esp + 5)) || !verify_ptr((void *)(*(esp + 4))))
-      syscall_exit(-1);
-    // put result from syscall_create into return register
-    f->eax = syscall_create((const char *)*(esp + 4), (unsigned)*(esp + 5));
-    break;
-  case SYS_REMOVE:
-    if (!verify_ptr((void *)(esp + 1)) || !verify_ptr((void *)(*(esp + 1))))
-      syscall_exit(-1);
+    case SYS_WAIT:
+        if (!verify_ptr((const void *)(esp + 1))) {
+            syscall_exit(-1);
+        }
+        f->eax = syscall_wait((pid_t)*(esp + 1));
+        break;
+      case SYS_CREATE:
+          // validate cmd line arguments
+          if (!verify_ptr((void *)(esp + 5)) || !verify_ptr((void *)(*(esp + 4))))
+              syscall_exit(-1);
+          // put result from syscall_create into return register
+          f->eax = syscall_create((const char *)*(esp + 4), (unsigned)*(esp + 5));
+          break;
+      case SYS_REMOVE:
+          if (!verify_ptr((void *)(esp + 1)) || !verify_ptr((void *)(*(esp + 1))))
+              syscall_exit(-1);
 
-    f->eax = syscall_remove((const char *)*(esp + 1));
-    break;
-  case SYS_OPEN:
-    if (!verify_ptr((const void *)(esp + 1)) || !verify_ptr((const void *)*(esp + 1)))
-    {
-      syscall_exit(-1);
+          f->eax = syscall_remove((const char *)*(esp + 1));
+          break;
+    case SYS_OPEN:
+      if(!verify_ptr((const void*)(esp + 1)) || !verify_ptr((const void*)*(esp + 1))) {
+        syscall_exit(-1);
+        break;
+      }
+      f->eax = (uint32_t) syscall_open((char *)*(esp + 1));
       break;
-    }
-    f->eax = (uint32_t)syscall_open((char *)*(esp + 1));
-    break;
-  case SYS_FILESIZE:
-    if (!verify_ptr((const void *)(esp + 1)))
-    {
-      syscall_exit(-1);
+    case SYS_FILESIZE:
+      if(!verify_ptr((const void*)(esp + 1))) {
+        syscall_exit(-1);
+        break;
+      }
+      f->eax = syscall_filesize((int)*(esp+1));
       break;
-    }
-    f->eax = syscall_filesize((int)*(esp + 1));
+    case SYS_SEEK:
+        if(!verify_ptr((const void*)(esp+4)) || !verify_ptr((const void*)(esp+5))){
+            syscall_exit(-1);
+        }
+        syscall_seek((int)(*(esp+4)), (unsigned) (*(esp+5)));
     break;
   case SYS_READ:
-    if (verify_ptr((const void *)(esp + 5)) && verify_ptr((const void *)(esp + 6)) && verify_ptr((const void *)(esp + 7)) && verify_ptr(*(esp + 6)))
+    if (verify_ptr((const void *)(esp + 5)) && verify_ptr((const void *)(esp + 6)) && verify_ptr((const void *)(esp + 7)))
     {
       f->eax = (uint32_t)syscall_read((int)*(esp + 5), (void *)*(esp + 6), (unsigned int)*(esp + 7));
     }
@@ -114,8 +115,6 @@ static void syscall_handler(struct intr_frame *f)
     {
       syscall_exit(-1);
     }
-    break;
-  case SYS_SEEK:
     break;
   case SYS_TELL:
     if (!verify_ptr((const void *)(esp + 1)))
@@ -359,10 +358,17 @@ int syscall_write(int fd, const void *buffer, unsigned size)
 /* Changes the next byte to be read or written in open file fd to position,
  * expressed in bytes from the beginning of the file. (Thus, a position of 0 is the file's start.)
  */
-void syscall_seek(int fd, unsigned position)
-{
-}
+void syscall_seek(int fd, unsigned position) {
+    lock_acquire(&filesys_lock);
+    struct file *fd_struct = getFile(fd);
 
+    if (fd_struct == NULL) {
+        lock_release(&filesys_lock);
+        return -1;
+    }
+    file_seek(fd_struct, position);
+    lock_release(&filesys_lock);
+}
 /* Returns the position of the next byte to be read or written in open file fd,
  * expressed in bytes from the beginning of the file.
  */
