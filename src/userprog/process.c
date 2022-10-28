@@ -136,10 +136,10 @@ int process_wait(tid_t child_tid UNUSED)
   }
 
   list_remove(list_found);
-  return child_found->exit_error;
+  // return child_found->exit_error;
 
-  // while(thread_current()->finish == false);
-  // return -1;
+  while(thread_current()->finish == false);
+  return child_found->exit_error;
 }
 
 /* Free the current process's resources. */
